@@ -1,0 +1,201 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+
+  /* DOST Zamboanga Peninsula / RSTW 2026 official palette, lifted from the
+     event poster and brand kit's Color Palette.png swatches: navy, sky
+     blue, a maroon-leaning red, tan-orange, and gold. The site runs a
+     light (paper) theme now, so "ink"/"navy" read as foreground text and
+     panel colors rather than backgrounds — `--color-paper` etc. below are
+     the actual background scale. Orange and teal are kept off the same
+     gradient (near-complementary hues blend through a muddy gray-brown
+     midpoint); red and gold each get their own scale too so pillar/section
+     accents can be assigned distinct, non-blended brand colors. */
+  --color-ink: #0c1a33;
+  --color-navy-950: #0a1730;
+  --color-navy-900: #0f2247;
+  --color-navy-800: #16345f;
+  --color-navy-700: #1d477e;
+  --color-navy-600: #2a5c9e;
+  --color-sky-400: #6fbdea;
+  --color-sky-500: #3d97d6;
+  --color-sky-600: #2678b8;
+  --color-orange-500: #f5a051;
+  --color-orange-600: #ee8b3b;
+  --color-orange-700: #dd6a2e;
+  --color-red-500: #c1432c;
+  --color-red-600: #a53623;
+  --color-red-700: #86281a;
+  --color-gold-400: #f0c479;
+  --color-gold-500: #e3a94f;
+  --color-gold-600: #d18f34;
+  --color-teal-400: #6fe0ee;
+  --color-teal-500: #33c5db;
+  --color-teal-600: #1aa6be;
+  --color-purple-400: #b79ae8;
+  --color-purple-500: #9575d0;
+  --color-purple-600: #7c58bd;
+
+  /* Paper background scale — warm off-white rather than clinical pure
+     white, so large flat areas don't glare, plus a slate ink scale for
+     body copy that isn't flat black. */
+  --color-paper-50: #fefcf8;
+  --color-paper-100: #faf5eb;
+  --color-paper-200: #f3ead8;
+  --color-slate-500: #5a6172;
+  --color-slate-600: #454b5c;
+  --color-slate-700: #333849;
+
+  --color-mist-300: #cdd3dc;
+  --color-mist-400: #99a2b1;
+  --color-mist-500: #737e8f;
+
+  --animate-orbit: orbit-spin 26s linear infinite;
+  --animate-orbit-rev: orbit-spin-rev 34s linear infinite;
+  --animate-float: float-y 6s ease-in-out infinite;
+  --animate-pulse-glow: pulse-glow 3.2s ease-in-out infinite;
+  --animate-gradient-pan: gradient-pan 6s ease infinite;
+  --animate-blob: blob-morph 14s ease-in-out infinite;
+  --animate-drift: drift 22s ease-in-out infinite;
+}
+
+@keyframes orbit-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes orbit-spin-rev {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+@keyframes float-y {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-14px); }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px 0 rgba(245, 160, 81, 0.35), 0 0 0 0 rgba(238, 139, 59, 0.25); }
+  50% { box-shadow: 0 0 42px 6px rgba(245, 160, 81, 0.55), 0 0 12px 2px rgba(238, 139, 59, 0.35); }
+}
+@keyframes gradient-pan {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+@keyframes blob-morph {
+  0%, 100% { border-radius: 42% 58% 65% 35% / 45% 40% 60% 55%; }
+  34% { border-radius: 62% 38% 40% 60% / 55% 65% 35% 45%; }
+  67% { border-radius: 38% 62% 55% 45% / 35% 50% 50% 65%; }
+}
+@keyframes drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(2%, -3%, 0) scale(1.05); }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--color-paper-50);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar {
+  display: none;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background: var(--color-paper-50);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+body::-webkit-scrollbar {
+  display: none;
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: var(--font-display);
+}
+
+html.custom-cursor-active {
+  cursor: none;
+}
+
+html.custom-cursor-active input,
+html.custom-cursor-active textarea {
+  cursor: text;
+}
+
+::selection {
+  background: rgba(245, 160, 81, 0.35);
+  color: var(--color-ink);
+}
+
+.text-gradient {
+  background: linear-gradient(100deg, #f0c479 0%, #f5a051 35%, #ee8b3b 70%, #dd6a2e 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.text-gradient-teal {
+  background: linear-gradient(100deg, #6fbdea 0%, #3d97d6 45%, #1aa6be 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(12, 26, 51, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(12, 26, 51, 0.055) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+.noise-veil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Sitewide paper texture — the pale RSTW pinwheel motif tiled at very low
+   opacity so large flat backgrounds aren't just a flat fill, without
+   competing with foreground content. */
+.bg-motif-texture {
+  background-image: url("/images/RSTW ELEMENTS/Background.png");
+  background-repeat: repeat;
+  background-size: 420px auto;
+}
+
+@keyframes marquee-x {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee-x 42s linear infinite;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
