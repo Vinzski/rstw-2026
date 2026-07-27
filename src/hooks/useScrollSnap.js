@@ -3,7 +3,7 @@ import { useMotionValueEvent } from "framer-motion";
 import { progressToScrollY } from "../lib/navigate";
 
 const SETTLE_DELAY_MS = 240;
-const SNAP_DURATION = 0.7;
+const SNAP_DURATION = 0.2;
 const EPSILON = 0.002;
 
 // If the user stops scrolling while sitting in a gap between two "clear"
@@ -16,7 +16,15 @@ const EPSILON = 0.002;
 // Does nothing while the user is actively scrolling, and does nothing if
 // they're already inside a zone (including one that's still mid-reveal
 // internally, like About's stat cards) — it only acts on genuine dead air.
-export default function useScrollSnap(progress, zones, lenisRef) {
+//
+// Also does nothing while `disabled` — the auto-tour deliberately lands
+// just past each chapter's entrance fade (matching a nav-click), which
+// for a narrow chapter can sit just outside that chapter's own defined
+// clear zone; left enabled, this hook would then "correct" the tour's own
+// landing spot ~240ms after it arrives, reading as a stutter mid-transition.
+// The tour already knows exactly where it wants to be, so it disables this
+// while it's driving rather than fighting it.
+export default function useScrollSnap(progress, zones, lenisRef, disabled = false) {
   const directionRef = useRef(1);
   const lastPRef = useRef(progress.get());
   const timerRef = useRef(null);
@@ -29,6 +37,7 @@ export default function useScrollSnap(progress, zones, lenisRef) {
     lastPRef.current = p;
 
     if (timerRef.current) clearTimeout(timerRef.current);
+    if (disabled) return;
     timerRef.current = setTimeout(() => {
       const settledP = lastPRef.current;
       if (settledP <= 0 || settledP >= 1 || snappingRef.current) return;

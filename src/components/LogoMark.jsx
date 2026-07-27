@@ -5,7 +5,7 @@
 export default function LogoMark({ size = 36 }) {
   return (
     <img
-      src="/images/dost-logo-150x150.jpg"
+      src="/images/dost-logo.png"
       alt="DOST Zamboanga Peninsula"
       className="shrink-0 object-contain mix-blend-multiply"
       style={{ width: size, height: size }}

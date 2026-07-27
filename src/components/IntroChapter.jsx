@@ -1,15 +1,13 @@
-import { useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MapPin, Calendar, ChevronDown } from "lucide-react";
-import { motion, useTransform } from "framer-motion";
+import { motion, useReducedMotion, useTransform } from "framer-motion";
 import { mapRange, mapRangeSmooth } from "../lib/scroll";
 import { intro } from "../data/content";
+import { el, logos } from "../lib/elements";
 import { LetterWatermark } from "./decor/Decor";
 import { useGlyphDive, useDivePublisher } from "../lib/glyphDive";
-import RstwAssembly from "./RstwAssembly";
-
-// The digit the camera dives through. Falls back to the first character if
-// the year ever loses its zero.
-const zeroIndex = Math.max(intro.year.indexOf("0"), 0);
+import { useRevealHeroChrome } from "../lib/heroChromeContext";
+import RstwAssembly, { LETTERS_REVEAL_DURATION } from "./RstwAssembly";
 
 // Local-progress window of the dive. The real About layer is revealed
 // directly through the zero's counter (CinematicLayers clips it to this
@@ -18,6 +16,18 @@ const zeroIndex = Math.max(intro.year.indexOf("0"), 0);
 // after it holds on the revealed section until the boundary crosses.
 const ZOOM_START = 0.22;
 const ZOOM_END = 0.95;
+
+// The year is now the brand's own "2026 Horizontal.png" art rather than
+// live text, so the glyph dive (which needs a real DOM box to measure and
+// rasterize) points at an invisible marker sized over the "0" instead of
+// a character span. Measured off the source PNG's alpha channel (3181x950
+// native): the "0" glyph's own column run is x[767,1615], full height —
+// as fractions of the whole image that's left 24.11%, width 26.65%, top 0,
+// height 100%. Not a literal text node, so glyphDive's counter-rasterizer
+// finds no single-character content and falls back to treating this box's
+// width as the hole's basis — fine here since the "0" is nearly as tall as
+// wide, so a circular approximation reads correctly.
+const ZERO_MARKER = { left: 24.11, width: 26.65 };
 
 // Receives its 0→1 progress from CinematicLayers, which owns this
 // chapter's slice of the single master scroll track — there is no
@@ -30,6 +40,7 @@ const ZOOM_END = 0.95;
 export default function IntroChapter({ progress, bgY, fgY }) {
   const wrapRef = useRef(null);
   const zeroRef = useRef(null);
+  const reduceMotion = useReducedMotion();
 
   const dive = useGlyphDive({
     progress,
@@ -44,6 +55,44 @@ export default function IntroChapter({ progress, bgY, fgY }) {
   // the year itself never fades — its ring is the transition's frame.
   const supportOpacity = useTransform(progress, (p) => mapRange(p, 0.16, 0.36, 1, 0));
   const cueOpacity = useTransform(progress, (p) => mapRange(p, 0, 0.08, 1, 0));
+
+  // The boot sequence: the circling shapes play with nothing else on
+  // screen — no text, no logo, no site chrome — the RSTW wordmark and
+  // year land together the instant the shapes have all entered the
+  // middle, and everything else (kicker, tagline, venue/date, scroll cue,
+  // the background watermark, *and* the persistent chrome: nav logo,
+  // autoplay button, progress rail corners) waits a further beat before
+  // fading in together. `heroRevealed` mirrors RstwAssembly's own reveal
+  // moment; `showRest` is that plus 1.5s — unless the wordmark never
+  // actually animated (a remount, or reduced motion), in which case
+  // there's nothing to stagger and everything just appears together.
+  // `revealHeroChrome` is the one-way channel back to App (see
+  // heroChromeContext) that fires the site chrome's own reveal in lockstep.
+  const revealHeroChrome = useRevealHeroChrome();
+  const [heroRevealed, setHeroRevealed] = useState(false);
+  const [showRest, setShowRest] = useState(false);
+
+  const showTheRest = useCallback(() => {
+    setShowRest(true);
+    revealHeroChrome();
+  }, [revealHeroChrome]);
+
+  const handleRstwRevealed = useCallback(
+    (wasAnimated) => {
+      setHeroRevealed(true);
+      if (!wasAnimated) showTheRest();
+    },
+    [showTheRest],
+  );
+
+  useEffect(() => {
+    if (!heroRevealed || showRest) return;
+    const t = setTimeout(showTheRest, 1500);
+    return () => clearTimeout(t);
+  }, [heroRevealed, showRest, showTheRest]);
+
+  const restInitial = reduceMotion ? false : { opacity: 0 };
+  const restTransition = { duration: reduceMotion ? 0 : 0.6, ease: [0.16, 1, 0.3, 1] };
 
   // Backdrop drifts forward the whole chapter, then joins the dive toward
   // the same anchor at a slower rate — depth parallax on the way in.
@@ -65,8 +114,10 @@ export default function IntroChapter({ progress, bgY, fgY }) {
         <div className="noise-veil" />
       </motion.div>
 
-      <motion.div style={{ opacity: supportOpacity }}>
-        <LetterWatermark letter="R" className="-left-10 top-1/2 h-[70vh] w-auto -translate-y-1/2 sm:left-2" opacity={0.05} />
+      <motion.div initial={restInitial} animate={{ opacity: showRest ? 1 : 0 }} transition={restTransition}>
+        <motion.div style={{ opacity: supportOpacity }}>
+          <LetterWatermark letter="R" className="-left-10 top-1/2 h-[70vh] w-auto -translate-y-1/2 sm:left-2" opacity={0.05} />
+        </motion.div>
       </motion.div>
 
       <motion.div
@@ -75,64 +126,81 @@ export default function IntroChapter({ progress, bgY, fgY }) {
         className="relative z-10 flex h-full items-center justify-center px-6"
       >
         <div className="mx-auto flex w-full max-w-4xl flex-col items-center text-center">
-          <motion.span
-            style={{ opacity: supportOpacity }}
-            className="mb-6 inline-flex items-center rounded-full border border-navy-900/12 bg-white/70 px-4 py-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-slate-600 shadow-sm backdrop-blur-sm sm:text-xs"
-          >
-            {intro.kicker}
-          </motion.span>
+          <motion.div initial={restInitial} animate={{ opacity: showRest ? 1 : 0 }} transition={restTransition}>
+            <motion.span
+              style={{ opacity: supportOpacity }}
+              className="mb-6 inline-flex items-center rounded-full border border-navy-900/12 bg-white/70 px-4 py-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-slate-600 shadow-sm backdrop-blur-sm sm:text-xs"
+            >
+              {intro.kicker}
+            </motion.span>
+          </motion.div>
           <h1 className="flex flex-col items-center gap-1 sm:gap-2">
             <motion.div style={{ opacity: supportOpacity }}>
-              <RstwAssembly title={intro.title} className="h-24 sm:h-36 md:h-44 xl:h-52" />
+              <RstwAssembly title={intro.title} className="h-24 sm:h-36 md:h-44 xl:h-52" onRevealed={handleRstwRevealed} />
             </motion.div>
-            <span className="text-gradient animate-gradient-pan font-display text-6xl font-bold leading-none sm:text-8xl md:text-9xl xl:text-[10.5rem]">
-              {intro.year.split("").map((ch, i) => (
+            <motion.div style={{ opacity: supportOpacity }}>
+              <motion.div
+                className="relative aspect-[3181/950] h-14 sm:h-20 md:h-24 xl:h-28"
+                initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+                animate={{ opacity: heroRevealed ? 1 : 0, y: heroRevealed ? 0 : 20 }}
+                transition={
+                  reduceMotion
+                    ? { duration: 0 }
+                    : { type: "spring", duration: 0.4, bounce: 0.15, delay: LETTERS_REVEAL_DURATION }
+                }
+              >
+                <img src={el(logos.yearHorizontal)} alt={intro.year} className="h-full w-full object-contain" />
                 <span
-                  key={i}
-                  ref={i === zeroIndex ? zeroRef : undefined}
-                  className="inline-block"
-                >
-                  {ch}
-                </span>
-              ))}
-            </span>
+                  ref={zeroRef}
+                  aria-hidden="true"
+                  className="invisible absolute top-0 h-full"
+                  style={{ left: `${ZERO_MARKER.left}%`, width: `${ZERO_MARKER.width}%` }}
+                />
+              </motion.div>
+            </motion.div>
           </h1>
-          <motion.p
-            style={{ opacity: supportOpacity }}
-            className="mt-6 max-w-2xl text-balance text-base text-slate-600 sm:text-lg md:text-xl"
-          >
-            {intro.tagline}
-          </motion.p>
-          <motion.div
-            style={{ opacity: supportOpacity }}
-            className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-slate-600"
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <MapPin className="h-4 w-4 text-orange-600" />
-              {intro.venue}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Calendar className="h-4 w-4 text-orange-600" />
-              {intro.date}
-            </span>
+          <motion.div initial={restInitial} animate={{ opacity: showRest ? 1 : 0 }} transition={restTransition}>
+            <motion.p
+              style={{ opacity: supportOpacity }}
+              className="mt-6 max-w-2xl text-balance text-base text-slate-600 sm:text-lg md:text-xl"
+            >
+              {intro.tagline}
+            </motion.p>
+          </motion.div>
+          <motion.div initial={restInitial} animate={{ opacity: showRest ? 1 : 0 }} transition={restTransition}>
+            <motion.div
+              style={{ opacity: supportOpacity }}
+              className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-slate-600"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <MapPin className="h-4 w-4 text-orange-600" />
+                {intro.venue}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Calendar className="h-4 w-4 text-orange-600" />
+                {intro.date}
+              </span>
+            </motion.div>
           </motion.div>
         </div>
       </motion.div>
 
-      <motion.div
-        style={{ opacity: cueOpacity }}
-        className="absolute inset-x-0 bottom-8 z-10 flex flex-col items-center gap-2 text-slate-500"
-      >
-        <span className="text-[0.65rem] font-semibold uppercase tracking-[0.3em]">
-          Scroll
-        </span>
-        <motion.span
-          animate={{ y: [0, 6, 0] }}
-          transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
-          className="grid h-8 w-8 place-items-center rounded-full border border-navy-900/15"
+      <motion.div initial={restInitial} animate={{ opacity: showRest ? 1 : 0 }} transition={restTransition}>
+        <motion.div
+          style={{ opacity: cueOpacity }}
+          className="absolute inset-x-0 bottom-8 z-10 flex flex-col items-center gap-2 text-slate-500"
         >
-          <ChevronDown className="h-4 w-4" />
-        </motion.span>
+          <span className="text-[0.65rem] font-semibold uppercase tracking-[0.3em]">
+            Scroll
+          </span>
+          <motion.span
+            animate={{ y: [0, 6, 0] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+            className="grid h-8 w-8 place-items-center rounded-full border border-navy-900/15"
+          >
+            <ChevronDown className="h-4 w-4" />
+          </motion.span>
+        </motion.div>
       </motion.div>
     </>
   );

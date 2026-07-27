@@ -94,3 +94,13 @@ export const locations = {
 export function el(name) {
   return `${BASE}/${name}`;
 }
+
+// Per-letter "exploded" geometry living in public/images/RSTW Individual
+// Words/<LETTER>/ — the numbered pieces (1.png, 2.png, ...) that combine
+// to form that letter, plus a same-folder reference render. Separate from
+// `letters` above (the flat, already-composited watermark glyphs).
+const WORDS_BASE = "/images/RSTW Individual Words";
+
+export function elWord(letter, name) {
+  return `${WORDS_BASE}/${letter}/${name}`;
+}

@@ -24,13 +24,19 @@ function buildTrail(height, waves, amplitude) {
   return d.trim();
 }
 
-export default function ProgressRail({ chapters, active }) {
+export default function ProgressRail({ chapters, active, stepOverride, hidden = false }) {
   const { scrollYProgress } = useScroll();
   const lenisRef = useLenisRef();
   const activeIndex = Math.max(
     0,
     chapters.findIndex((c) => c.id === active),
   );
+  // The auto-tour visits more distinct stops than there are top-level
+  // chapters (each of Pillars'/Highlights' 4 beats is its own stop) — while
+  // it's driving, show its own count instead of the chapter-level one so
+  // the number on screen matches what's actually being counted through.
+  const displayIndex = stepOverride ? stepOverride.index : activeIndex + 1;
+  const displayTotal = stepOverride ? stepOverride.total : chapters.length;
 
   const railHeight = chapters.length * DOT_H + (chapters.length - 1) * GAP;
   const trailPath = useMemo(() => buildTrail(railHeight, 2.6, 6), [railHeight]);
@@ -47,19 +53,25 @@ export default function ProgressRail({ chapters, active }) {
         style={{ scaleX: scrollYProgress }}
       />
 
-      <div className="pointer-events-none fixed bottom-6 left-6 z-40 hidden flex-col gap-1.5 font-display text-ink sm:flex lg:bottom-10 lg:left-10">
+      <motion.div
+        className="pointer-events-none fixed bottom-6 left-6 z-40 hidden flex-col gap-1.5 font-display text-ink sm:flex lg:bottom-10 lg:left-10"
+        animate={{ opacity: hidden ? 0 : 1, y: hidden ? -16 : 0 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      >
         <span className="text-2xl font-semibold tabular-nums leading-none">
-          {String(activeIndex + 1).padStart(2, "0")}
+          {String(displayIndex).padStart(2, "0")}
         </span>
         <span className="h-px w-6 bg-navy-900/20" />
         <span className="text-xs font-medium uppercase tracking-[0.25em] text-slate-500">
-          {String(chapters.length).padStart(2, "0")}
+          {String(displayTotal).padStart(2, "0")}
         </span>
-      </div>
+      </motion.div>
 
-      <div
+      <motion.div
         className="pointer-events-none fixed bottom-6 right-6 z-40 hidden sm:block lg:right-10"
         style={{ width: RAIL_W, height: railHeight }}
+        animate={{ opacity: hidden ? 0 : 1, y: hidden ? -16 : 0 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       >
         <svg
           aria-hidden="true"
@@ -86,7 +98,7 @@ export default function ProgressRail({ chapters, active }) {
           }}
         />
 
-        <div className="pointer-events-auto flex flex-col items-center" style={{ gap: GAP }}>
+        <div className={`flex flex-col items-center ${hidden ? "pointer-events-none" : "pointer-events-auto"}`} style={{ gap: GAP }}>
           {chapters.map((c) => (
             <button
               key={c.id}
@@ -109,7 +121,7 @@ export default function ProgressRail({ chapters, active }) {
             </button>
           ))}
         </div>
-      </div>
+      </motion.div>
     </>
   );
 }

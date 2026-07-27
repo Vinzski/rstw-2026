@@ -29,6 +29,11 @@ export const HOLE_FRAC = 0.44;
 // the clip circle — has swallowed the farthest viewport corner.
 export const COUNTER_FRAC = 0.18;
 
+// How much of a dive's own (start to end) range its reveal hole spends
+// easing in from invisible, instead of popping to its base size the
+// instant progress crosses `start`.
+const HOLE_FADE_IN_FRAC = 0.35;
+
 // ---------------------------------------------------------------------------
 // Counter detection. A bounding-box center is only a valid dive target for
 // letters whose hole IS their middle (o, 0). For glyphs like "&" the box
@@ -271,19 +276,30 @@ export function useGlyphDive({ progress, sceneRef, glyphRef, start, end }) {
     Math.pow(e, mapRangeSmooth(p, start, end, 0, 1)),
   );
   const diveOrigin = useMotionTemplate`${anchorX}px ${anchorY}px`;
-  const holeRadius = useTransform([progress, diveScale, holeBase], ([p, s, r0]) =>
-    p <= start ? 0 : s * r0,
+  // The reveal hole's own onset: easing it in over the first
+  // HOLE_FADE_IN_FRAC of the dive's range, rather than the radius
+  // jumping straight from 0 to its full base size the instant progress
+  // crosses `start`. That instant pop is invisible when a dive *lands* on
+  // an already-past-start position (a nav click, the auto-tour) — there's
+  // nothing to see it jump from — but scrolling manually INTO a dive's
+  // start means actually watching the incoming chapter's backdrop punch
+  // a small, hard-edged hole through the outgoing glyph with no warning.
+  const holeFadeIn = useTransform(progress, (p) =>
+    mapRangeSmooth(p, start, start + (end - start) * HOLE_FADE_IN_FRAC, 0, 1),
+  );
+  const holeRadius = useTransform([progress, diveScale, holeBase, holeFadeIn], ([p, s, r0, fade]) =>
+    p <= start ? 0 : s * r0 * fade,
   );
   // The counter-fitted ellipse semi-axes. Chapter boundaries need these:
   // the incoming layer paints *above* the outgoing layer, so its clip edge
   // must stay inside the see-through hole of the letter — and fill that
   // hole's actual oval shape, or a discolored ring of the outgoing
   // backdrop shows around a too-small circle.
-  const counterRx = useTransform([progress, diveScale, counterRxBase], ([p, s, r]) =>
-    p <= start ? 0 : s * r,
+  const counterRx = useTransform([progress, diveScale, counterRxBase, holeFadeIn], ([p, s, r, fade]) =>
+    p <= start ? 0 : s * r * fade,
   );
-  const counterRy = useTransform([progress, diveScale, counterRyBase], ([p, s, r]) =>
-    p <= start ? 0 : s * r,
+  const counterRy = useTransform([progress, diveScale, counterRyBase, holeFadeIn], ([p, s, r, fade]) =>
+    p <= start ? 0 : s * r * fade,
   );
 
   return { diveScale, diveOrigin, holeRadius, counterRx, counterRy, anchorX, anchorY };

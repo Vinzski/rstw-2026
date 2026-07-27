@@ -31,9 +31,15 @@ export const snapZones = (() => {
       const segment = 1 / count;
       const fade = segment * pillarBeatFadeFrac;
       const dive = segment * beatDiveFrac;
+      const isLastRange = range.id === cinematicRanges[cinematicRanges.length - 1].id;
       for (let i = 0; i < count; i++) {
+        const isLastBeat = i === count - 1;
         const localStart = i * segment + fade * 0.5;
-        const localEnd = (i + 1) * segment - dive;
+        // The very last beat of the very last chapter doesn't dive out —
+        // it settles and holds all the way through to the page's actual
+        // end, so its clear window isn't clipped by a dive margin the
+        // way every other beat's is.
+        const localEnd = isLastRange && isLastBeat ? 1 : (i + 1) * segment - dive;
         zones.push({ start: toMaster(range, localStart), end: toMaster(range, localEnd) });
       }
       continue;

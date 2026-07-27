@@ -7,14 +7,9 @@ import {
   Rocket,
   Trophy,
   Presentation,
-  Building2,
-  Hotel,
-  MapPin,
-  Mail,
-  Phone,
 } from "lucide-react";
 
-// The narrative chapters (Intro through When & Where) don't live in their
+// The narrative chapters (Intro through Highlights) don't live in their
 // own document sections anymore — they're layers inside one continuous
 // pinned track (see CinematicTrack), each owning a weighted slice of it.
 // `vh` here is relative weight, not an actual CSS height; only the ratio
@@ -30,7 +25,6 @@ export const cinematicSegments = [
   { id: "about", label: "About", vh: 600 },
   { id: "pillars", label: "Pillars", vh: 1000 },
   { id: "highlights", label: "Highlights", vh: 950 },
-  { id: "when", label: "When & Where", vh: 260 },
 ];
 
 export const cinematicTotalVh = cinematicSegments.reduce((sum, seg) => sum + seg.vh, 0);
@@ -42,11 +36,6 @@ export const cinematicRanges = cinematicSegments.map((seg) => {
   const end = cumulativeVh / cinematicTotalVh;
   return { ...seg, start, end };
 });
-
-// Stay, Explore and Contact remain real, independently-scrollable
-// sections — a pinned contact form (or a pinned photo gallery) is a
-// usability trap, not a flourish.
-export const flowChapterIds = ["explore", "stay", "contact"];
 
 // Fade-window fractions shared between the chapters that use them and the
 // snap-zone map (see lib/snapZones.js) — defined once here so the two stay
@@ -65,14 +54,11 @@ export const chapterParallax = { bg: 36, fg: 20 };
 export const beatDiveFrac = 0.6;
 export const pillarBeatFadeFrac = 0.3;
 
-// The single source of truth for the journey's order — drives the nav,
-// the progress rail, and the active-chapter observer.
-export const chapters = [
-  ...cinematicSegments.map(({ id, label }) => ({ id, label })),
-  { id: "explore", label: "Explore" },
-  { id: "stay", label: "Stay" },
-  { id: "contact", label: "Contact" },
-];
+// The single source of truth for the journey's order — drives the nav and
+// the progress rail. Tech Demos & Talks (the last card in `highlights`
+// below) is the site's final beat, so the Highlights chapter itself is
+// the last stop before the footer.
+export const chapters = cinematicSegments.map(({ id, label }) => ({ id, label }));
 
 export const navLinks = chapters.map((c) => ({
   label: c.label,
@@ -168,72 +154,3 @@ export const highlights = [
   },
 ];
 
-export const whenWhere = {
-  eyebrow: "Save the Date",
-  statement: "One region, moving forward.",
-  target: "2026-08-12T00:00:00+08:00",
-  dayRange: "12—14",
-  monthYear: "AUGUST 2026",
-  dateLabel: "August 12–14, 2026",
-  venueLabel: "Dipolog City · Zamboanga del Norte",
-};
-
-// Zamboanga Peninsula landmarks and local specialties, illustrated in the
-// official RSTW brand art — a gallery so those location pieces have
-// somewhere real to live rather than being scattered as tiny decoration.
-export const explore = {
-  eyebrow: "Around the Peninsula",
-  title: "The region RSTW 2026 calls home",
-  description:
-    "Zamboanga del Norte's coastline, culture, and local trade — the backdrop for three days of science and innovation in Dipolog City.",
-  places: [
-    { key: "vinta", image: "vinta.png", name: "The Vinta", tag: "Culture", copy: "Mindanao's iconic multicolored sail." },
-    { key: "malamawi", image: "malamawi boardwalk orange.png", name: "Malamawi Boardwalk", tag: "Coast", copy: "Where the sea meets the city." },
-    { key: "puntaDeDesembarco", image: "puntu de desembarco.png", name: "Punta de Desembarco", tag: "Landmark", copy: "A historic coastal landing site." },
-    { key: "pagsalabuk", image: "pgsalabuk fountain blue.png", name: "Pagsalabuk Fountain", tag: "Landmark", copy: "The heart of community life." },
-    { key: "unityPark", image: "unity park multicolor.png", name: "Unity Park", tag: "Community", copy: "Green space built for the people." },
-    { key: "yakan", image: "yakan square.png", name: "Yakan Weave", tag: "Heritage", copy: "Geometric weave of the Yakan people." },
-    { key: "calamansi", image: "calamansi yellow.png", name: "Calamansi", tag: "Agriculture", copy: "A staple citrus, grown region-wide." },
-    { key: "rubber", image: "rubber orange.png", name: "Rubber Trade", tag: "Industry", copy: "A long-standing local livelihood." },
-    { key: "tamban", image: "tamban.png", name: "Tamban", tag: "Fisheries", copy: "Central to the coastal fishing trade." },
-  ],
-};
-
-export const hotels = [
-  {
-    icon: Building2,
-    name: "Dipolog Garden Hotel",
-    area: "Dipolog City Center",
-    copy: "Placeholder listing — a full-service hotel within easy reach of the main venue and downtown attractions.",
-  },
-  {
-    icon: Hotel,
-    name: "Peninsula Bay Suites",
-    area: "Coastal Dipolog",
-    copy: "Placeholder listing — waterfront accommodations with conference-friendly meeting spaces.",
-  },
-  {
-    icon: Building2,
-    name: "Coastal View Inn",
-    area: "Near Venue",
-    copy: "Placeholder listing — budget-friendly rooms a short walk from the event grounds.",
-  },
-];
-
-export const contactInfo = [
-  {
-    icon: MapPin,
-    label: "Address",
-    value: "DOST Zamboanga Peninsula, Dipolog City, Zamboanga del Norte",
-  },
-  {
-    icon: Mail,
-    label: "Email",
-    value: "region9@dost.gov.ph",
-  },
-  {
-    icon: Phone,
-    label: "Phone",
-    value: "(062) 991-1024",
-  },
-];

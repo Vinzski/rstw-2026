@@ -25,12 +25,17 @@ export function progressToScrollY(fraction, geometry = getTrackGeometry()) {
 }
 
 // Jumping to a narrative chapter can't just scrollIntoView an element with
-// that id anymore — Intro/About/Pillars/Highlights/When are all layers
-// inside one pinned track (see CinematicTrack), not separate sections. So
-// for those ids, compute the scroll position that corresponds to their
-// slice of the track's progress directly; for real sections (Stay,
-// Contact) fall back to the ordinary element-based scroll.
-export function scrollToChapter(id, lenis) {
+// that id — Intro/About/Pillars/Highlights are all layers inside one
+// pinned track (see CinematicTrack), not separate sections. So for those
+// ids, compute the scroll position that corresponds to their slice of the
+// track's progress directly. The element-based fallback below covers any
+// id that isn't part of that track, should one exist outside it again.
+//
+// `duration` defaults to a quick nav-click feel (1.4s); the auto-tour
+// passes a slower one so the scroll-scrubbed zoom/dive/wipe transitions
+// each chapter drives off scroll position — invisible on an instant jump —
+// actually have time to play as the position glides through them.
+export function scrollToChapter(id, lenis, duration = 1.4) {
   const range = cinematicRanges.find((r) => r.id === id);
 
   if (range) {
@@ -38,13 +43,13 @@ export function scrollToChapter(id, lenis) {
     const targetY = progressToScrollY(fraction);
     if (targetY === null) return;
 
-    if (lenis) lenis.scrollTo(targetY, { duration: 1.4 });
+    if (lenis) lenis.scrollTo(targetY, { duration });
     else window.scrollTo({ top: targetY, behavior: "smooth" });
     return;
   }
 
   const el = document.getElementById(id);
   if (!el) return;
-  if (lenis) lenis.scrollTo(el, { duration: 1.4 });
+  if (lenis) lenis.scrollTo(el, { duration });
   else el.scrollIntoView({ behavior: "smooth" });
 }

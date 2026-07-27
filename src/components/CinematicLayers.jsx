@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, useTransform, useMotionValueEvent } from "framer-motion";
 import { mapRange } from "../lib/scroll";
 import { revealClip, hideClip } from "../lib/wipe";
@@ -11,9 +11,8 @@ import IntroChapter from "./IntroChapter";
 import AboutChapter from "./AboutChapter";
 import PillarsChapter from "./PillarsChapter";
 import HighlightsChapter from "./HighlightsChapter";
-import WhenChapter from "./WhenChapter";
 
-const COMPONENTS = [IntroChapter, AboutChapter, PillarsChapter, HighlightsChapter, WhenChapter];
+const COMPONENTS = [IntroChapter, AboutChapter, PillarsChapter, HighlightsChapter];
 
 // How far into a neighboring chapter's territory each chapter's wipe
 // transition runs, in master-progress fractions.
@@ -25,6 +24,8 @@ const EDGE_FADE = chapterEdgeFade;
 // boundary, and an unmounted layer mid-dive would pop in as a visible
 // hole of content.
 const MOUNT_MARGIN = EDGE_FADE + 0.052;
+
+const ALL_MOUNTED = new Set(cinematicRanges.map((_, i) => i));
 
 function computeMountSet(p) {
   const set = new Set();
@@ -64,9 +65,8 @@ const HANDOFF_IN = {
   about: diveHandoffs.intro,
   pillars: diveHandoffs.about,
   highlights: diveHandoffs.pillars,
-  when: diveHandoffs.highlights,
 };
-const DIVES_OUT = new Set(["intro", "about", "pillars", "highlights"]);
+const DIVES_OUT = new Set(["intro", "about", "pillars"]);
 
 function useSegmentEnvelope(masterProgress, range, isFirst, isLast) {
   const { start, end, id } = range;
@@ -99,24 +99,38 @@ function useSegmentEnvelope(masterProgress, range, isFirst, isLast) {
   return { localProgress, clipPath, bgY, fgY };
 }
 
-// All five narrative chapters live here as absolutely-positioned layers
+// All four narrative chapters live here as absolutely-positioned layers
 // sharing one sticky viewport, each driven by its own slice of one master
 // progress value. Neighboring chapters stay mounted through a boundary —
 // the "next" chapter is already sitting right there, mid-entrance, for the
 // wipe to have something to reveal — so crossing between them reads as one
 // continuous camera move through a single space rather than a handoff
-// between separate pages.
+// between separate pages. Highlights is the last of them — its final
+// beat (Tech Demos & Talks) settles and holds instead of diving into a
+// next chapter, since the real page ends there, into the footer.
 //
 // But a chapter more than one boundary away is unmounted entirely, not
 // just clipped to nothing. Every chapter runs a couple dozen of its own
 // scroll-linked transforms (kinetic text, beat choreography for
 // Pillars/Highlights...), and those all recompute and write to the DOM on
 // every scroll frame regardless of whether anything is visible — keeping
-// all five mounted permanently meant paying for roughly 5x the animation
+// all four mounted permanently meant paying for roughly 4x the animation
 // work the screen could ever actually show at once. Chapters outside mount
 // range are already fully clipped away before they're dropped and after
 // they're remounted, so this doesn't change anything visible.
-export default function CinematicLayers({ progress, onActiveChange }) {
+//
+// That trade only pays off while the user is dwelling somewhere — during
+// the auto-tour's continuous rewind, master progress sweeps through the
+// *entire* track in one unbroken pass, so a chapter that would normally
+// enjoy several seconds of margin before its neighbor needs it instead
+// gets unmounted and remounted within a much smaller real-time window.
+// Mounting a whole chapter back in (images, a couple dozen fresh motion
+// values, a glyph-dive's layout measurement) is real synchronous work,
+// and doing it while the animation is mid-flight risked a dropped frame
+// reading as a blank flash right at the seam. `isAutoPlaying` keeps every
+// chapter mounted for the whole automated sequence instead — a short-lived
+// trade of the normal lazy-mount saving for guaranteed-smooth playback.
+export default function CinematicLayers({ progress, onActiveChange, isAutoPlaying }) {
   useMotionValueEvent(progress, "change", (p) => {
     let current = cinematicRanges[0];
     for (const range of cinematicRanges) {
@@ -126,20 +140,23 @@ export default function CinematicLayers({ progress, onActiveChange }) {
   });
 
   const lenisRef = useLenisRef();
-  useScrollSnap(progress, snapZones, lenisRef);
+  useScrollSnap(progress, snapZones, lenisRef, isAutoPlaying);
 
-  const [mounted, setMounted] = useState(() => computeMountSet(progress.get()));
+  const [mounted, setMounted] = useState(() => (isAutoPlaying ? ALL_MOUNTED : computeMountSet(progress.get())));
   useMotionValueEvent(progress, "change", (p) => {
-    const next = computeMountSet(p);
+    const next = isAutoPlaying ? ALL_MOUNTED : computeMountSet(p);
     setMounted((prev) => (sameMountSet(prev, next) ? prev : next));
   });
+  useEffect(() => {
+    const next = isAutoPlaying ? ALL_MOUNTED : computeMountSet(progress.get());
+    setMounted((prev) => (sameMountSet(prev, next) ? prev : next));
+  }, [isAutoPlaying, progress]);
 
   const env0 = useSegmentEnvelope(progress, cinematicRanges[0], true, false);
   const env1 = useSegmentEnvelope(progress, cinematicRanges[1], false, false);
   const env2 = useSegmentEnvelope(progress, cinematicRanges[2], false, false);
-  const env3 = useSegmentEnvelope(progress, cinematicRanges[3], false, false);
-  const env4 = useSegmentEnvelope(progress, cinematicRanges[4], false, true);
-  const envelopes = [env0, env1, env2, env3, env4];
+  const env3 = useSegmentEnvelope(progress, cinematicRanges[3], false, true);
+  const envelopes = [env0, env1, env2, env3];
 
   return (
     <div className="relative h-full w-full">

@@ -5,7 +5,7 @@ import DiveText from "./DiveText";
 import { mapRange, mapRangeSmooth } from "../lib/scroll";
 import { highlights, pillarBeatFadeFrac, beatDiveFrac } from "../data/content";
 import { el, motifs } from "../lib/elements";
-import { useGlyphDive, useDivePublisher, NULL_DIVE } from "../lib/glyphDive";
+import { useGlyphDive, NULL_DIVE } from "../lib/glyphDive";
 
 const COUNT = highlights.length;
 const SEGMENT = 1 / COUNT;
@@ -15,8 +15,10 @@ const DIVE = SEGMENT * beatDiveFrac;
 const FADE = SEGMENT * pillarBeatFadeFrac;
 
 // The glyph each card dives through on its way out — continuing the one
-// transition verb through the highlights deck. The last card's dive is
-// the chapter exit into When & Where (published via diveHandoffs).
+// transition verb through the highlights deck. Highlights is the site's
+// last chapter, so the final card (Tech Demos & Talks) doesn't dive
+// anywhere — it settles and holds through to the footer instead; see the
+// `isLastCard` handling in HighlightCard below.
 const DIVE_GLYPHS = [
   { word: "&", char: 0, nth: 1 }, //  the standalone "&" of "Fair & Exhibits"
   { word: "Regional", char: 4 }, //   the "o" of "Regional"
@@ -146,6 +148,10 @@ function HighlightCard({ item, progress, index, theme, dive, prevDive, glyphRef,
   const Icon = item.icon;
   const start = index * SEGMENT;
   const end = start + SEGMENT;
+  // The site's last beat — nothing dives out after it, so it reveals the
+  // same way every other card does, then just stays put through to the
+  // chapter's (and the page's) end instead of exiting through its glyph.
+  const isLastCard = index === COUNT - 1;
   // Alternating left/right resting position — every other card settles
   // toward the opposite edge instead of all four landing dead-center.
   const onRight = index % 2 === 1;
@@ -155,6 +161,7 @@ function HighlightCard({ item, progress, index, theme, dive, prevDive, glyphRef,
     const revealStart = start - DIVE;
     if (p < revealStart) return 0;
     if (p < revealStart + DIVE * 0.2) return mapRange(p, revealStart, revealStart + DIVE * 0.2, 0, 1);
+    if (isLastCard) return 1;
     if (p < end) return 1;
     return 0;
   });
@@ -186,8 +193,8 @@ function HighlightCard({ item, progress, index, theme, dive, prevDive, glyphRef,
       style={{
         opacity,
         clipPath: enterClip,
-        scale: dive.diveScale,
-        transformOrigin: dive.diveOrigin,
+        scale: isLastCard ? 1 : dive.diveScale,
+        transformOrigin: isLastCard ? undefined : dive.diveOrigin,
         zIndex: COUNT - index,
       }}
       className="absolute inset-0"
@@ -271,14 +278,15 @@ export default function HighlightsChapter({ progress, bgY, fgY }) {
     return () => window.removeEventListener("resize", measure);
   }, [sceneW, sceneH]);
 
-  // Last dive = chapter exit into When & Where; slightly wider window
-  // than the beat-to-beat steps, same as the Pillars chapter's exit.
+  // dive3 (card 3's own glyph measurement) is computed for symmetry with
+  // the others but its scale/origin go unused — Highlights is the site's
+  // last chapter, so the last card settles instead of diving out; see
+  // `isLastCard` in HighlightCard.
   const dive0 = useGlyphDive({ progress, sceneRef, glyphRef: glyphRefs[0], start: SEGMENT - DIVE, end: SEGMENT - 0.008 });
   const dive1 = useGlyphDive({ progress, sceneRef, glyphRef: glyphRefs[1], start: 2 * SEGMENT - DIVE, end: 2 * SEGMENT - 0.008 });
   const dive2 = useGlyphDive({ progress, sceneRef, glyphRef: glyphRefs[2], start: 3 * SEGMENT - DIVE, end: 3 * SEGMENT - 0.008 });
   const dive3 = useGlyphDive({ progress, sceneRef, glyphRef: glyphRefs[3], start: 1 - DIVE * 1.1, end: 0.992 });
   const dives = [dive0, dive1, dive2, dive3];
-  useDivePublisher("highlights", dive3, fgY);
 
   const bgScale = useTransform(progress, (p) => mapRange(p, 0, 1, 1, 1.3));
   const theme = HIGHLIGHT_THEME[beatIndex];
