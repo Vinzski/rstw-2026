@@ -45,6 +45,17 @@ const HIGHLIGHT_THEME = [
 // hiding most of each other behind whichever one happens to be on top.
 const EVENT_PHOTOS_BASE = "/images/RSTW 2025";
 
+// S&T Fair & Exhibits — two landscape photos of last year's fair,
+// scattered the same non-overlapping way as the other two photo cards
+// (a smaller footprint since there are only two of them, but the same
+// "real photos, popping in, all visible" treatment).
+const EXHIBIT_FAN = [
+  { file: "553579800_1210302201144784_7655861267300697454_n.jpg", rotate: -6, x: -150, y: -70 },
+  { file: "555441927_1210303541144650_5650172245905539790_n.jpg", rotate: 6, x: 150, y: 80 },
+];
+const EXHIBIT_CARD_CLASS = "h-28 w-48 xl:h-40 xl:w-64";
+const EXHIBIT_WRAP_CLASS = "h-[24rem] w-[34rem] xl:h-[28rem] xl:w-[40rem]";
+
 // Tech Demos & Talks — three portrait photos scattered around a shared
 // footprint with small, varied rotations, positioned so no two ever
 // overlap (checked against each card's actual box, not just eyeballed).
@@ -182,11 +193,13 @@ function HighlightCard({ item, progress, index, theme, dive, prevDive, glyphRef,
 
   const g = DIVE_GLYPHS[index];
   const photoFan =
-    index === 1
-      ? { fan: FORUM_FAN, wrapClassName: FORUM_WRAP_CLASS, cardClassName: FORUM_CARD_CLASS }
-      : index === 3
-        ? { fan: DEMO_FAN, wrapClassName: DEMO_WRAP_CLASS, cardClassName: DEMO_CARD_CLASS }
-        : null;
+    index === 0
+      ? { fan: EXHIBIT_FAN, wrapClassName: EXHIBIT_WRAP_CLASS, cardClassName: EXHIBIT_CARD_CLASS }
+      : index === 1
+        ? { fan: FORUM_FAN, wrapClassName: FORUM_WRAP_CLASS, cardClassName: FORUM_CARD_CLASS }
+        : index === 3
+          ? { fan: DEMO_FAN, wrapClassName: DEMO_WRAP_CLASS, cardClassName: DEMO_CARD_CLASS }
+          : null;
 
   return (
     <motion.div
@@ -210,7 +223,7 @@ function HighlightCard({ item, progress, index, theme, dive, prevDive, glyphRef,
           className={`pointer-events-none absolute top-1/2 hidden -translate-y-1/2 lg:block ${
             index === 3
               ? (onRight ? "left-24 xl:left-36" : "right-24 xl:right-36")
-              : index === 1
+              : index === 1 || index === 0
                 ? (onRight ? "left-14 xl:left-20" : "right-14 xl:right-20")
                 : (onRight ? "left-10 xl:left-16" : "right-10 xl:right-16")
           }`}
