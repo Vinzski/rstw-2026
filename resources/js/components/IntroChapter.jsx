@@ -138,25 +138,23 @@ export default function IntroChapter({ progress, bgY, fgY }) {
             <motion.div style={{ opacity: supportOpacity }}>
               <RstwAssembly title={intro.title} className="h-24 sm:h-36 md:h-44 xl:h-52" onRevealed={handleRstwRevealed} />
             </motion.div>
-            <motion.div style={{ opacity: supportOpacity }}>
-              <motion.div
-                className="relative aspect-[3181/950] h-14 sm:h-20 md:h-24 xl:h-28"
-                initial={reduceMotion ? false : { opacity: 0, y: 20 }}
-                animate={{ opacity: heroRevealed ? 1 : 0, y: heroRevealed ? 0 : 20 }}
-                transition={
-                  reduceMotion
-                    ? { duration: 0 }
-                    : { type: "spring", duration: 0.4, bounce: 0.15, delay: LETTERS_REVEAL_DURATION }
-                }
-              >
-                <img src={el(logos.yearHorizontal)} alt={intro.year} className="h-full w-full object-contain" />
-                <span
-                  ref={zeroRef}
-                  aria-hidden="true"
-                  className="invisible absolute top-0 h-full"
-                  style={{ left: `${ZERO_MARKER.left}%`, width: `${ZERO_MARKER.width}%` }}
-                />
-              </motion.div>
+            <motion.div
+              className="relative aspect-[3181/950] h-14 sm:h-20 md:h-24 xl:h-28"
+              initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+              animate={{ opacity: heroRevealed ? 1 : 0, y: heroRevealed ? 0 : 20 }}
+              transition={
+                reduceMotion
+                  ? { duration: 0 }
+                  : { type: "spring", duration: 0.4, bounce: 0.15, delay: LETTERS_REVEAL_DURATION }
+              }
+            >
+              <img src={el(logos.yearHorizontal)} alt={intro.year} className="h-full w-full object-contain" />
+              <span
+                ref={zeroRef}
+                aria-hidden="true"
+                className="invisible absolute top-0 h-full"
+                style={{ left: `${ZERO_MARKER.left}%`, width: `${ZERO_MARKER.width}%` }}
+              />
             </motion.div>
           </h1>
           <motion.div initial={restInitial} animate={{ opacity: showRest ? 1 : 0 }} transition={restTransition}>

@@ -1,16 +1,55 @@
-# React + Vite
+# RSTW 2026
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Regional Science, Technology & Innovation Week site. Laravel backend, React (Vite) frontend — the React app lives in `resources/js`, mounted into `resources/views/app.blade.php` and served through Laravel's own router.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Backend**: Laravel, PHP 8.3+
+- **Frontend**: React 19 + Vite, via `laravel-vite-plugin`
+- **Styling**: Tailwind CSS v4 (`resources/css/app.css`)
+- **Database**: MySQL (not yet configured — see below)
 
-## React Compiler
+## Setup
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+composer install
+npm install
+cp .env.example .env   # if you don't already have one
+php artisan key:generate
+```
 
-## Expanding the Oxlint configuration
+Fill in `DB_USERNAME` / `DB_PASSWORD` in `.env` for your local MySQL instance, then create the `rstw_2026` database (or change `DB_DATABASE`) and run:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+```bash
+php artisan migrate
+```
+
+### Running locally
+
+If this project is inside a [Herd](https://herd.laravel.com) sites path, Herd serves the PHP side automatically. Otherwise:
+
+```bash
+php artisan serve
+```
+
+Either way, run Vite alongside it for the frontend (HMR):
+
+```bash
+npm run dev
+```
+
+### Building for production
+
+```bash
+npm run build
+```
+
+Outputs to `public/build`; Laravel's `@vite` directive in `resources/views/app.blade.php` picks it up automatically (no manifest checks needed in code).
+
+## Project layout
+
+- `resources/js/` — the React app (`App.jsx` is the root component, `main.jsx` is the entry point Vite/Blade load)
+- `resources/css/app.css` — Tailwind + the site's theme tokens/animations
+- `resources/views/app.blade.php` — the single Blade shell the SPA mounts into
+- `routes/web.php` — currently just the one route that returns the shell view
+- `public/images/`, `public/lottie/`, etc. — static brand assets, referenced by the React app via plain `/images/...` URLs (untouched by Vite's build — Laravel serves these directly, same as before the Laravel merge)
