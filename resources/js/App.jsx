@@ -35,6 +35,7 @@ export default function App() {
 
   const {
     isPlaying,
+    isRewinding,
     controlsVisible,
     activeOverride,
     stepInfo,
@@ -128,7 +129,11 @@ export default function App() {
                 />
               )}
               <main>
-                <CinematicTrack onActiveChange={setCinematicActive} isAutoPlaying={isPlaying} />
+                <CinematicTrack
+                  onActiveChange={setCinematicActive}
+                  isAutoPlaying={isPlaying}
+                  forceMountAll={isRewinding}
+                />
               </main>
               <Footer />
             </div>

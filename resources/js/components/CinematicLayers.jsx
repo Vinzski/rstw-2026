@@ -76,13 +76,22 @@ function useSegmentEnvelope(masterProgress, range, isFirst, isLast) {
   const dive = handoffIn ?? NO_HANDOFF;
   const divesOut = DIVES_OUT.has(id);
   const clipPath = useTransform(
-    [masterProgress, dive.x, dive.y, dive.rx, dive.ry],
-    ([p, hx, hy, hrx, hry]) => {
+    [masterProgress, dive.x, dive.y, dive.rx, dive.ry, dive.full],
+    ([p, hx, hy, hrx, hry, full]) => {
       if (!isFirst && p < start + EDGE_FADE) {
         // Ellipse, not circle: it fills the glyph counter's actual oval,
         // so the reveal reads as the whole hole opening rather than a
         // disc floating inside it.
-        if (handoffIn) return `ellipse(${hrx}px ${hry}px at ${hx}px ${hy}px)`;
+        if (handoffIn) {
+          // The outgoing dive's own hole has already grown to cover the
+          // viewport by the time `full` flips — clipping to it from here
+          // to `start + EDGE_FADE` would just be an oversized, no-op
+          // shape recomputed every scroll frame on top of this whole
+          // (often filter/image-heavy) layer. Dropping to a flat "none"
+          // is exactly as visible and far cheaper to repaint.
+          if (full) return "none";
+          return `ellipse(${hrx}px ${hry}px at ${hx}px ${hy}px)`;
+        }
         return revealClip(mapRange(p, start - EDGE_FADE, start + EDGE_FADE, 0, 1));
       }
       if (!isLast && p > end - EDGE_FADE) {
@@ -119,18 +128,25 @@ function useSegmentEnvelope(masterProgress, range, isFirst, isLast) {
 // range are already fully clipped away before they're dropped and after
 // they're remounted, so this doesn't change anything visible.
 //
-// That trade only pays off while the user is dwelling somewhere — during
-// the auto-tour's continuous rewind, master progress sweeps through the
-// *entire* track in one unbroken pass, so a chapter that would normally
-// enjoy several seconds of margin before its neighbor needs it instead
-// gets unmounted and remounted within a much smaller real-time window.
+// That trade only pays off while the user is dwelling somewhere. The
+// auto-tour's stop-by-stop forward hops move at roughly the pace a normal
+// scroll would (see useAutoPlay's hopDuration), so the same margin-based
+// mounting that already works for manual scrolling covers them fine.
+// Only the continuous rewind is the exception: master progress sweeps
+// through the *entire* track in one unbroken pass, crossing every chapter
+// boundary back to back, so a chapter that would normally enjoy several
+// seconds of margin before its neighbor needs it instead gets unmounted
+// and remounted within a much smaller real-time window, repeatedly.
 // Mounting a whole chapter back in (images, a couple dozen fresh motion
-// values, a glyph-dive's layout measurement) is real synchronous work,
-// and doing it while the animation is mid-flight risked a dropped frame
-// reading as a blank flash right at the seam. `isAutoPlaying` keeps every
-// chapter mounted for the whole automated sequence instead — a short-lived
-// trade of the normal lazy-mount saving for guaranteed-smooth playback.
-export default function CinematicLayers({ progress, onActiveChange, isAutoPlaying }) {
+// values, a glyph-dive's layout measurement) is real synchronous work, and
+// doing it while the animation is mid-flight risked a dropped frame
+// reading as a blank flash right at the seam. `forceMountAll` (true only
+// for that rewind sweep — see isRewinding in useAutoPlay) keeps every
+// chapter mounted for just that stretch instead of the whole automated
+// sequence, so the forward tour keeps paying the normal lazy-mount cost
+// rather than running all four chapters' animation work simultaneously
+// for the better part of a minute.
+export default function CinematicLayers({ progress, onActiveChange, isAutoPlaying, forceMountAll }) {
   useMotionValueEvent(progress, "change", (p) => {
     let current = cinematicRanges[0];
     for (const range of cinematicRanges) {
@@ -142,15 +158,15 @@ export default function CinematicLayers({ progress, onActiveChange, isAutoPlayin
   const lenisRef = useLenisRef();
   useScrollSnap(progress, snapZones, lenisRef, isAutoPlaying);
 
-  const [mounted, setMounted] = useState(() => (isAutoPlaying ? ALL_MOUNTED : computeMountSet(progress.get())));
+  const [mounted, setMounted] = useState(() => (forceMountAll ? ALL_MOUNTED : computeMountSet(progress.get())));
   useMotionValueEvent(progress, "change", (p) => {
-    const next = isAutoPlaying ? ALL_MOUNTED : computeMountSet(p);
+    const next = forceMountAll ? ALL_MOUNTED : computeMountSet(p);
     setMounted((prev) => (sameMountSet(prev, next) ? prev : next));
   });
   useEffect(() => {
-    const next = isAutoPlaying ? ALL_MOUNTED : computeMountSet(progress.get());
+    const next = forceMountAll ? ALL_MOUNTED : computeMountSet(progress.get());
     setMounted((prev) => (sameMountSet(prev, next) ? prev : next));
-  }, [isAutoPlaying, progress]);
+  }, [forceMountAll, progress]);
 
   const env0 = useSegmentEnvelope(progress, cinematicRanges[0], true, false);
   const env1 = useSegmentEnvelope(progress, cinematicRanges[1], false, false);
@@ -167,7 +183,7 @@ export default function CinematicLayers({ progress, onActiveChange, isAutoPlayin
         return (
           <motion.div
             key={range.id}
-            style={{ clipPath: env.clipPath }}
+            style={{ clipPath: env.clipPath, willChange: "clip-path" }}
             className="absolute inset-0"
           >
             <ChapterComponent progress={env.localProgress} bgY={env.bgY} fgY={env.fgY} />

@@ -133,6 +133,7 @@ function stopScrollY(stop) {
 // that happens, same as it does for a real manual scroll.
 export default function useAutoPlay(lenisRef) {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isRewinding, setIsRewinding] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [overrideActive, setOverrideActive] = useState(false);
   const [currentChapterId, setCurrentChapterId] = useState(STOPS[0].chapterId);
@@ -155,15 +156,18 @@ export default function useAutoPlay(lenisRef) {
   const stop = useCallback(() => {
     clearStepTimer();
     setIsPlaying(false);
+    setIsRewinding(false);
     setControlsVisible(true);
   }, []);
 
   const rewind = useCallback(() => {
     releaseOverride();
+    setIsRewinding(true);
     if (lenisRef?.current) lenisRef.current.scrollTo(0, { duration: REWIND_TOTAL_S });
     else window.scrollTo({ top: 0, behavior: "smooth" });
     stepTimerRef.current = setTimeout(() => {
       setIsPlaying(false);
+      setIsRewinding(false);
       setControlsVisible(true);
     }, REWIND_TOTAL_S * 1000 + 200);
   }, [lenisRef, releaseOverride]);
@@ -250,6 +254,7 @@ export default function useAutoPlay(lenisRef) {
 
   return {
     isPlaying,
+    isRewinding,
     controlsVisible,
     activeOverride: overrideActive ? currentChapterId : null,
     stepInfo: overrideActive ? { index: stepIndex + 1, total: STOPS.length } : null,

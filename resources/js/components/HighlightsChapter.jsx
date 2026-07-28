@@ -193,6 +193,7 @@ function HighlightCard({ item, progress, index, theme, dive, prevDive, glyphRef,
       style={{
         opacity,
         clipPath: enterClip,
+        willChange: "clip-path",
         scale: isLastCard ? 1 : dive.diveScale,
         transformOrigin: isLastCard ? undefined : dive.diveOrigin,
         zIndex: COUNT - index,
@@ -297,7 +298,7 @@ export default function HighlightsChapter({ progress, bgY, fgY }) {
         style={{ scale: bgScale, y: bgY }}
         className="absolute inset-0 bg-gradient-to-b from-paper-50 via-white to-paper-100"
       >
-        <div className="bg-grid absolute inset-0 opacity-30" />
+        <div className="bg-motif-texture absolute inset-0 opacity-30" />
         <div className="pointer-events-none absolute left-1/2 top-0 h-96 w-96 -translate-x-1/2 rounded-full bg-orange-500/10 blur-2xl" />
         <div className="noise-veil" />
       </motion.div>

@@ -72,7 +72,7 @@ export default function Loader({ onDone }) {
         if (leaving) onDone();
       }}
     >
-      <div className="bg-grid absolute inset-0 opacity-50" />
+      <div className="bg-motif-texture absolute inset-0 opacity-50" />
       <div className="noise-veil" />
       <div className="animate-blob absolute left-1/2 top-1/2 h-[36rem] w-[36rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-400/15 blur-3xl" />
 

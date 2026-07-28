@@ -231,6 +231,7 @@ function PillarBeat({ pillar, progress, index, theme, dive, prevDive, glyphRef, 
       style={{
         opacity,
         clipPath: enterClip,
+        willChange: "clip-path",
         scale: dive.diveScale,
         transformOrigin: dive.diveOrigin,
         zIndex: COUNT - index,
@@ -324,7 +325,7 @@ export default function PillarsChapter({ progress, bgY, fgY }) {
   return (
     <>
       <motion.div style={{ scale: bgScale, y: bgY }} className="absolute inset-0 bg-paper-50">
-        <div className="bg-grid absolute inset-0 opacity-40" />
+        <div className="bg-motif-texture absolute inset-0 opacity-40" />
         <div className="animate-drift absolute -right-40 top-[-10%] h-[38rem] w-[38rem] rounded-full bg-sky-400/15 blur-2xl" />
         <div className="noise-veil" />
       </motion.div>

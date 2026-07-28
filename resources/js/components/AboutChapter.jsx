@@ -214,7 +214,7 @@ export default function AboutChapter({ progress, bgY, fgY }) {
         style={{ scale: bgScale, y: bgY }}
         className="absolute inset-0 bg-gradient-to-b from-paper-100 via-paper-50 to-white"
       >
-        <div className="bg-grid absolute inset-0 opacity-40" />
+        <div className="bg-motif-texture absolute inset-0 opacity-40" />
         <div className="absolute left-1/2 top-1/3 h-[40rem] w-[40rem] -translate-x-1/2 rounded-full bg-orange-500/10 blur-2xl" />
         <div className="noise-veil" />
       </motion.div>
