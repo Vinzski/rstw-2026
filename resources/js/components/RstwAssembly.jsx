@@ -55,14 +55,48 @@ const BOX = 52; // px — fixed on-screen size of each traveling piece
 const SAMPLE_COUNT = 48;
 const SAMPLE_TIMES = Array.from({ length: SAMPLE_COUNT }, (_, i) => i / (SAMPLE_COUNT - 1));
 
-const LOOPS = 1.35;
-const CIRCLE_FRACTION = 0.72;
-const ARRIVE_FRACTION = 0.88;
 const START_ANGLE = -Math.PI / 2;
 
-const TRAVEL_DURATION = 3.4;
-const STAGGER = 0.12;
-const START_DELAY = 0.15;
+// Formation: every piece rotates around the ring continuously from the
+// moment the sequence starts — there's no separate "sweep into place"
+// step distinct from the rotation, and no pause anywhere in it. Pieces
+// fade into visibility one at a time (left to right, R→S→T) while already
+// riding that same rotation, so the ring is always either not-yet-fully-
+// visible or turning, never both stopped *and* incomplete. Once the shared
+// rotation reaches its target angle (at least one full lap) it locks in
+// place all at once — that's the only stop in the whole sequence — and
+// only then do pieces start peeling off, one at a time, in slot order
+// starting from the top and going clockwise (the same direction the ring
+// was just turning), diving into the wordmark's slot and vanishing there.
+const RING_ENTRY_STAGGER = 0.05; // per-piece fade-in start offset — assembles left to right
+const RING_ENTRY_FADE_DURATION = 0.5; // how long a piece takes to fade/scale up once its own turn to appear comes
+const RING_ROTATION_DURATION = 3.5; // wall-clock length of the one continuous, uninterrupted rotation
+const RING_ROTATION_LAPS = 1; // full laps completed by the time the rotation locks — "at least one full rotation"
+const DIVE_GAP_BASE = 0.4; // pause after the rotation locks before the top piece's own turn
+const DIVE_GAP_MIN = 0.16;
+const DIVE_GAP_MAX = 0.32; // randomized gap between one piece's dive-turn and the next
+const CENTER_DIVE_DURATION = 0.6;
+
+// Depth cue for the ring's "3D" read: pieces toward the near side of the
+// ellipse (bottom, facing the viewer) render bigger and brighter than the
+// ones on the far side (top) — the same illusion a carousel or clock face
+// gives when viewed from a slight angle instead of dead-on flat. Read off
+// the piece's *current* angle (not just its resting slot), so a piece
+// visibly grows and brightens as the lap swings it toward the front and
+// shrinks again as it swings toward the back.
+const RING_SCALE_MIN = 0.72;
+const RING_SCALE_MAX = 1.3;
+const RING_OPACITY_MIN = 0.55;
+
+function depthFactor(angle) {
+  return (Math.sin(angle) + 1) / 2;
+}
+function ringScale(angle) {
+  return lerp(RING_SCALE_MIN, RING_SCALE_MAX, depthFactor(angle));
+}
+function ringOpacity(angle) {
+  return lerp(RING_OPACITY_MIN, 1, depthFactor(angle));
+}
 
 // Ambient background sparks that keep popping around the page margins
 // once the wordmark has landed — a standing, permanent presence for as
@@ -89,43 +123,90 @@ function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
-// Where a piece sits along the circling-then-diving route at time t
-// (0→1): an elliptical orbit around the whole viewport for the first
-// ~72% of the trip, then an eased pull from wherever the orbit left off
-// straight to the wordmark's real on-screen slot for the rest. Every
-// piece samples this same curve, just phase-shifted by its own start
-// delay (see TrainPiece) — one shared track is what reads as a train
-// following a leader instead of a dozen unrelated flight paths.
-function trainPoint(t, orbit, target) {
-  if (t <= CIRCLE_FRACTION) {
-    const angle = START_ANGLE + (t / CIRCLE_FRACTION) * LOOPS * Math.PI * 2;
-    return { x: orbit.cx + Math.cos(angle) * orbit.rx, y: orbit.cy + Math.sin(angle) * orbit.ry };
-  }
-  const endAngle = START_ANGLE + LOOPS * Math.PI * 2;
-  const from = { x: orbit.cx + Math.cos(endAngle) * orbit.rx, y: orbit.cy + Math.sin(endAngle) * orbit.ry };
-  // Fully arrives at the target by ARRIVE_FRACTION — before the
-  // opacity/scale fade (which starts at that same fraction, see
-  // TrainPiece) — so a piece sits still, fully at the wordmark's slot,
-  // for the whole time it's vanishing, instead of still being mid-flight
-  // toward it when it disappears.
-  const u = Math.min((t - CIRCLE_FRACTION) / (ARRIVE_FRACTION - CIRCLE_FRACTION), 1);
-  const eased = u * u;
-  return { x: lerp(from.x, target.x, eased), y: lerp(from.y, target.y, eased) };
+function pieceSlotAngle(index, total) {
+  return START_ANGLE + (index / total) * Math.PI * 2;
 }
 
-// One car of the train: rides `trainPoint` on its own delayed clock, then
-// — right as it reaches the wordmark's slot — shrinks and fades away
-// rather than stopping there, reading as "entering" the middle instead of
-// piling up on top of it.
-function TrainPiece({ src, index, orbit, target }) {
-  const delay = START_DELAY + index * STAGGER;
-  const spin = (index % 2 === 0 ? 1 : -1) * 420;
+function ringPoint(angle, orbit) {
+  return { x: orbit.cx + Math.cos(angle) * orbit.rx, y: orbit.cy + Math.sin(angle) * orbit.ry };
+}
 
-  const { xs, ys } = useMemo(() => {
-    const xs = SAMPLE_TIMES.map((t) => trainPoint(t, orbit, target).x - BOX / 2);
-    const ys = SAMPLE_TIMES.map((t) => trainPoint(t, orbit, target).y - BOX / 2);
-    return { xs, ys };
-  }, [orbit, target]);
+// How far into its own fade a piece is at time `t` — 0 before its turn to
+// appear, 1 once fully visible. Purely an opacity/scale multiplier; the
+// piece's *position* follows the shared rotation the whole time regardless
+// (see ringPiecePoint), so there's nothing to "catch up" on once it fades
+// in — it's already exactly where the rest of the ring is.
+function entryProgress(t, index) {
+  const start = RING_ENTRY_STAGGER * index;
+  return Math.min(Math.max((t - start) / RING_ENTRY_FADE_DURATION, 0), 1);
+}
+
+// One piece's whole path, `t` in wall-clock seconds since the sequence
+// started (the same clock for every piece, which is what keeps the
+// rotation genuinely synchronized). Rotates continuously around the ring
+// from t=0 — fading into view partway through, on its own staggered
+// schedule, but never changing *how* it moves to do so — until the shared
+// rotation locks in place (a whole number of laps, so every piece lands
+// exactly back on its own slot at the same instant); only then does it
+// wait out its own turn and dive from its slot to `target`, shrinking
+// away — the same "entering the middle" flourish the old single
+// dive-through had.
+function ringPiecePoint(t, index, total, orbit, target, diveDelay) {
+  const angleSlot = pieceSlotAngle(index, total);
+  const diveStart = RING_ROTATION_DURATION + diveDelay;
+
+  if (t <= diveStart) {
+    const spinT = Math.min(t, RING_ROTATION_DURATION);
+    const angle = angleSlot + (spinT / RING_ROTATION_DURATION) * RING_ROTATION_LAPS * Math.PI * 2;
+    const p = ringPoint(angle, orbit);
+    const fade = entryProgress(t, index);
+    return {
+      x: p.x,
+      y: p.y,
+      scale: lerp(0.5, 1, fade) * ringScale(angle),
+      opacity: fade * ringOpacity(angle),
+      rotate: 0,
+    };
+  }
+  // Diving to center — always from its slot: the rotation completes a
+  // whole number of laps, so that's exactly where it comes to rest.
+  const slot = ringPoint(angleSlot, orbit);
+  const baseOpacity = ringOpacity(angleSlot);
+  // The dive-in fade stays right at the tail — a piece sits fully arrived
+  // at the wordmark's slot before it vanishes, not still fading mid-flight.
+  const u = Math.min((t - diveStart) / CENTER_DIVE_DURATION, 1);
+  const eased = u * u;
+  const fadeStart = 0.82;
+  const opacity = u < fadeStart ? baseOpacity : lerp(baseOpacity, 0, (u - fadeStart) / (1 - fadeStart));
+  return {
+    x: lerp(slot.x, target.x, eased),
+    y: lerp(slot.y, target.y, eased),
+    scale: lerp(ringScale(angleSlot), 0.15, eased),
+    opacity,
+    rotate: 420 * eased,
+  };
+}
+
+// One piece of the ring — see `ringPiecePoint` for its full timeline.
+// `diveDelay` is this piece's own wait, after the rotation locks, for its
+// top-to-clockwise turn — see pieceDiveDelays in RstwAssembly.
+function TrainPiece({ src, index, total, orbit, target, diveDelay, duration }) {
+  const { xs, ys, scales, opacities, rotates } = useMemo(() => {
+    const xs = [];
+    const ys = [];
+    const scales = [];
+    const opacities = [];
+    const rotates = [];
+    for (const frac of SAMPLE_TIMES) {
+      const p = ringPiecePoint(frac * duration, index, total, orbit, target, diveDelay);
+      xs.push(p.x - BOX / 2);
+      ys.push(p.y - BOX / 2);
+      scales.push(p.scale);
+      opacities.push(p.opacity);
+      rotates.push(p.rotate);
+    }
+    return { xs, ys, scales, opacities, rotates };
+  }, [index, total, orbit, target, diveDelay, duration]);
 
   return (
     <motion.img
@@ -135,13 +216,13 @@ function TrainPiece({ src, index, orbit, target }) {
       className="absolute left-0 top-0 object-contain drop-shadow-md"
       style={{ width: BOX, height: BOX }}
       initial={{ x: xs[0], y: ys[0], opacity: 0, scale: 0.5, rotate: 0 }}
-      animate={{ x: xs, y: ys, opacity: [0, 1, 1, 0], scale: [0.5, 1, 1, 0.15], rotate: [0, spin] }}
+      animate={{ x: xs, y: ys, opacity: opacities, scale: scales, rotate: rotates }}
       transition={{
-        x: { duration: TRAVEL_DURATION, delay, times: SAMPLE_TIMES, ease: "linear" },
-        y: { duration: TRAVEL_DURATION, delay, times: SAMPLE_TIMES, ease: "linear" },
-        opacity: { duration: TRAVEL_DURATION, delay, times: [0, 0.05, ARRIVE_FRACTION, 1] },
-        scale: { duration: TRAVEL_DURATION, delay, times: [0, 0.05, ARRIVE_FRACTION, 1] },
-        rotate: { duration: TRAVEL_DURATION, delay, ease: "linear" },
+        x: { duration, times: SAMPLE_TIMES, ease: "linear" },
+        y: { duration, times: SAMPLE_TIMES, ease: "linear" },
+        opacity: { duration, times: SAMPLE_TIMES, ease: "linear" },
+        scale: { duration, times: SAMPLE_TIMES, ease: "linear" },
+        rotate: { duration, times: SAMPLE_TIMES, ease: "linear" },
       }}
     />
   );
@@ -240,14 +321,21 @@ function AmbientFireworks() {
   return seedDelays.map((seedDelay, i) => <AmbientEmitter key={i} seedDelay={seedDelay} />);
 }
 
-// The RSTW wordmark. On first load: R/S/T's exploded pieces spool into a
-// train that circles the hero, dives into the wordmark's own on-screen
-// slot (above "2026") disappearing one by one as each arrives, and the
-// flat, fully-assembled wordmark lands right after — no pause, no burst
-// in between. Once it's landed, faint ambient sparks keep drifting up
-// around the page margins for as long as the hero is on screen. On every
-// later mount (or under reduced motion) it just settles straight into
-// that finished state — see `hasPlayedTrainIntro`.
+// The RSTW wordmark. On first load: R/S/T's exploded pieces spin up into a
+// complete, evenly spaced ring around the hero, fading in one at a time
+// (left to right, R→S→T) while already riding that same rotation — no
+// separate "fly into place" step, no pause, the ring is simply turning
+// continuously from the first frame. Once the rotation completes at least
+// one full lap, it locks in place all at once — the only stop in the
+// whole sequence — and only then do pieces start peeling off the ring one
+// at a time, starting from the top and going clockwise (the same direction
+// it was just turning), diving into the wordmark's own on-screen slot
+// (above "2026") and vanishing there. The flat, fully-assembled wordmark
+// lands right after the last piece is gone — no pause, no burst in
+// between. Once it's landed, faint ambient sparks keep drifting up around
+// the page margins for as long as the hero is on screen. On every later
+// mount (or under reduced motion) it just settles straight into that
+// finished state — see `hasPlayedTrainIntro`.
 export default function RstwAssembly({ title, className = "", onRevealed }) {
   const appReady = useAppReady();
   const reduceMotion = useReducedMotion();
@@ -263,6 +351,21 @@ export default function RstwAssembly({ title, className = "", onRevealed }) {
   const [orbit, setOrbit] = useState(null);
   const onRevealedRef = useRef(onRevealed);
   onRevealedRef.current = onRevealed;
+
+  // Each piece's own wait, after the shared rotation locks in place, for
+  // its top-to-clockwise turn to dive — index 0 (the top slot) goes first,
+  // then each next slot clockwise, with a randomized (not metronomic) gap
+  // between turns. Computed once per (real) mount, same lifetime as the
+  // sequence.
+  const pieceDiveDelays = useMemo(() => {
+    const delays = new Array(TRAIN_PIECES.length);
+    let cumulative = DIVE_GAP_BASE;
+    for (let i = 0; i < TRAIN_PIECES.length; i++) {
+      delays[i] = cumulative;
+      cumulative += DIVE_GAP_MIN + Math.random() * (DIVE_GAP_MAX - DIVE_GAP_MIN);
+    }
+    return delays;
+  }, []);
 
   useLayoutEffect(() => {
     function measure() {
@@ -287,14 +390,18 @@ export default function RstwAssembly({ title, className = "", onRevealed }) {
     }
     if (!appReady) return;
 
-    const travelEnd = START_DELAY + (TRAIN_PIECES.length - 1) * STAGGER + TRAVEL_DURATION;
+    // Every piece locks out of rotation at the same instant; the last one
+    // to actually finish is whichever has the largest dive-delay — the
+    // last slot in the top-to-clockwise order — so that's what the flat
+    // wordmark's reveal waits on.
+    const travelEnd = RING_ROTATION_DURATION + pieceDiveDelays[pieceDiveDelays.length - 1] + CENTER_DIVE_DURATION;
     const doneTimer = setTimeout(() => {
       hasPlayedTrainIntro = true;
       setPhase("done");
     }, travelEnd * 1000);
 
     return () => clearTimeout(doneTimer);
-  }, [appReady, reduceMotion]);
+  }, [appReady, reduceMotion, pieceDiveDelays]);
 
   useEffect(() => {
     if (phase === "done") onRevealedRef.current?.(startedAnimated);
@@ -333,7 +440,16 @@ export default function RstwAssembly({ title, className = "", onRevealed }) {
               target &&
               orbit &&
               TRAIN_PIECES.map((piece, i) => (
-                <TrainPiece key={piece.key} src={piece.src} index={i} orbit={orbit} target={target} />
+                <TrainPiece
+                  key={piece.key}
+                  src={piece.src}
+                  index={i}
+                  total={TRAIN_PIECES.length}
+                  orbit={orbit}
+                  target={target}
+                  diveDelay={pieceDiveDelays[i]}
+                  duration={RING_ROTATION_DURATION + pieceDiveDelays[i] + CENTER_DIVE_DURATION}
+                />
               ))}
             {revealed && <AmbientFireworks />}
           </div>,
