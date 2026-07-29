@@ -1,32 +1,33 @@
-// Placeholder VIP roster — swap in real names/photos once available.
-// Plain hex (not `var(--color-...)`) on purpose: VipBox and VipSpotlight
-// both build translucent tints like `${color}33` by string
-// concatenation, which only works with a real hex string, not a CSS
-// custom-property reference. These mirror the theme's own tokens (see
-// resources/css/app.css `@theme`): orange-500, sky-500, red-600, gold-500.
+// Placeholder VIP roster — swap in real names once available.
+// Plain hex (not `var(--color-...)`) on purpose: VipBox builds
+// translucent tints like `${color}33` by string concatenation, which
+// only works with a real hex string, not a CSS custom-property
+// reference. Both each panel's border (VipBox) and its connector line
+// to the next panel (RowConnectors) are driven off this same color, so
+// changing it here updates both at once.
 export const VIPS = [
   {
     id: 1,
     name: "VIP Guest 1",
-    color: "#f5a051",
-    image: "/images/VIPs/estes_png_by_teh90blog_denckzu-pre.png",
+    color: "#86281a", // maroon (red-700)
+    image: "/images/VIPs/image1.png",
   },
   {
     id: 2,
     name: "VIP Guest 2",
-    color: "#3d97d6",
-    image: "/images/VIPs/ling___night_shade_mlbb_png_by_dechunf_dea5077-pre.png",
+    color: "#f5a051", // orange (orange-500)
+    image: "/images/VIPs/image2.png",
   },
   {
     id: 3,
     name: "VIP Guest 3",
-    color: "#a53623",
-    image: "/images/VIPs/skin_hayabusa_epic_mlbb_png_by_dechunf_ddrax87-fullview.png",
+    color: "#6fbdea", // light blue (sky-400)
+    image: "/images/VIPs/image3.png",
   },
   {
     id: 4,
     name: "VIP Guest 4",
-    color: "#e3a94f",
-    image: "/images/VIPs/vexana_revamp_mlbb_png_tranparant_by_dechunf_df6znvn-pre.png",
+    color: "#1d477e", // dark blue (navy-700)
+    image: "/images/VIPs/image4.png",
   },
 ];

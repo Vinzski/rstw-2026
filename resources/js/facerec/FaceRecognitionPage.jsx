@@ -1,51 +1,71 @@
 import { useCallback, useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import BrandBorder from "../components/decor/BrandBorder";
 import { useCameraStream } from "./useCameraStream";
 import { useStageMetrics } from "./useStageMetrics";
 import VipBox from "./VipBox";
-import CornerRing from "./CornerRing";
 import FusionFlash from "./FusionFlash";
-import VipSpotlight from "./VipSpotlight";
+import RowConnectors from "./RowConnectors";
+import FuseOrb from "./FuseOrb";
+import LogoBadge from "./LogoBadge";
 import { VIPS } from "./data";
 
-// Scan order is UL → UR → LR → LL — one clockwise lap. Labels flip
-// which side of the box they sit on so they never run off-screen: below
-// the top corners (indices 0, 1 — UL, UR), above the bottom ones
-// (2, 3 — LR, LL).
-const LABEL_BELOW = [true, true, false, false];
-
-const SPOTLIGHT_HOLD_MS = 3000; // how long the full-page reveal holds before wiping away
 const FUSE_HOLD_MS = 700; // pause after the 4th verify, before converging
 const FUSE_DURATION_MS = 1500; // converge + flash (matches FusionFlash's own duration)
 const LOGO_DURATION_MS = 2000; // hold on the big DOST logo
-const LEAVE_DURATION_MS = 850; // white-out before the real navigation to "/"
+const LEAVE_DURATION_MS = 850; // white-out before handing off to the real landing page
 
-export default function FaceRecognitionPage() {
+// The handoff from one VIP to the next is three beats, in order: (1)
+// "confirming" — the VIP who just verified holds while their own border
+// fills in and flashes (see VipBox — its border only ever fills once
+// `stage` is "done"), (2) "traveling" — only once that's finished does
+// the connector actually travel to the next panel (see RowConnectors'
+// FLOW_DURATION_S, which this is sized to match), (3) the next VIP goes
+// "active" and starts scanning immediately once it arrives. The last
+// VIP has no next panel to travel to, so their handoff skips straight
+// from confirming to done.
+const CONFIRM_MS = 1500; // ~ VipBox's own border-fill + flash duration
+const FLOW_MS = 1600; // ~ RowConnectors' FLOW_DURATION_S
+
+export default function FaceRecognitionPage({ onFinished }) {
   const { stream, error, retry } = useCameraStream();
   const [activeIndex, setActiveIndex] = useState(0);
-  const [phase, setPhase] = useState("scanning"); // scanning | spotlight | fusing | logo | leaving
+  const [phase, setPhase] = useState("scanning"); // scanning | fusing | logo | leaving
+  const [subPhase, setSubPhase] = useState("scanning"); // scanning | confirming | traveling — see the handoff comment above
 
-  const metrics = useStageMetrics();
+  const metrics = useStageMetrics(VIPS.length);
   const allVerified = activeIndex >= VIPS.length;
   const converged = phase === "fusing" || phase === "logo";
 
-  // A scan completing doesn't move the box straight to its corner — it
-  // takes over the whole screen first (VipSpotlight) so the moment reads
-  // as a deliberate reveal. The box only advances once that reveal wipes
-  // away, below.
+  // ScanOverlay itself already holds on its own "Identity Verified"
+  // checkmark for a beat before calling this — so a scan completing goes
+  // straight into that VIP's own confirm beat, below.
   const handleVerified = useCallback(() => {
-    setPhase("spotlight");
+    setSubPhase("confirming");
   }, []);
 
   useEffect(() => {
-    if (phase !== "spotlight") return;
+    if (subPhase !== "confirming") return;
+    const isLast = activeIndex >= VIPS.length - 1;
     const t = setTimeout(() => {
-      setActiveIndex((i) => Math.min(i + 1, VIPS.length));
-      setPhase("scanning");
-    }, SPOTLIGHT_HOLD_MS);
+      if (isLast) {
+        setActiveIndex((i) => i + 1);
+        setSubPhase("scanning");
+      } else {
+        setSubPhase("traveling");
+      }
+    }, CONFIRM_MS);
     return () => clearTimeout(t);
-  }, [phase]);
+  }, [subPhase, activeIndex]);
+
+  useEffect(() => {
+    if (subPhase !== "traveling") return;
+    const t = setTimeout(() => {
+      setActiveIndex((i) => i + 1);
+      setSubPhase("scanning");
+    }, FLOW_MS);
+    return () => clearTimeout(t);
+  }, [subPhase]);
 
   useEffect(() => {
     if (!allVerified) return;
@@ -66,21 +86,22 @@ export default function FaceRecognitionPage() {
   }, [phase]);
 
   function rectFor(i) {
-    const { bigSize, smallSize, center, corners } = metrics;
-    if (converged) {
-      const size = smallSize * 0.55;
-      return { x: center.x - size / 2, y: center.y - size / 2, size };
-    }
-    if (i === activeIndex && !allVerified) {
-      return { x: center.x - bigSize / 2, y: center.y - bigSize / 2, size: bigSize };
-    }
-    return { x: corners[i].x - smallSize / 2, y: corners[i].y - smallSize / 2, size: smallSize };
+    const { slotWidth, slotHeight, slots } = metrics;
+    return {
+      x: slots[i].x - slotWidth / 2,
+      y: slots[i].y - slotHeight / 2,
+      width: slotWidth,
+      height: slotHeight,
+    };
   }
 
   function stageFor(i) {
     if (converged) return "fusing";
     if (i < activeIndex) return "done";
-    if (i === activeIndex && !allVerified) return "active";
+    // Confirming/traveling: this VIP has already verified — they read as
+    // "done" (photo revealed, border filling/settled) even though the
+    // parent hasn't advanced activeIndex to the next one quite yet.
+    if (i === activeIndex && !allVerified) return subPhase === "scanning" ? "active" : "done";
     return "idle";
   }
 
@@ -97,55 +118,55 @@ export default function FaceRecognitionPage() {
         transition={{ duration: 0.6, ease: "easeInOut" }}
       >
         <div className="absolute inset-0 z-10">
-          {!converged && <CornerRing center={metrics.center} rx={metrics.rx} ry={metrics.ry} verifiedCount={activeIndex} />}
+          {!converged && <RowConnectors slots={metrics.slots} vips={VIPS} activeIndex={activeIndex} subPhase={subPhase} />}
 
-          {VIPS.map((vip, i) => {
-            if (i > activeIndex) return null; // not their turn yet — stay fully unseen, no empty slot to preview
-            return (
-              <VipBox
-                key={vip.id}
-                vip={vip}
-                stage={stageFor(i)}
-                rect={rectFor(i)}
-                stream={stream}
-                cameraError={i === activeIndex ? error : null}
-                onRetryCamera={retry}
-                onVerified={i === activeIndex ? handleVerified : undefined}
-              />
-            );
-          })}
+          {VIPS.map((vip, i) => (
+            <VipBox
+              key={vip.id}
+              vip={vip}
+              stage={stageFor(i)}
+              rect={rectFor(i)}
+              stream={stream}
+              cameraError={i === activeIndex ? error : null}
+              onRetryCamera={retry}
+              onVerified={i === activeIndex ? handleVerified : undefined}
+            />
+          ))}
 
           {!converged &&
             VIPS.map((vip, i) => {
-              if (i > activeIndex) return null;
-              const below = LABEL_BELOW[i];
-              const corner = metrics.corners[i];
+              const slot = metrics.slots[i];
+              const status =
+                i < activeIndex
+                  ? "Checked in"
+                  : i === activeIndex
+                    ? subPhase === "scanning"
+                      ? "Scanning"
+                      : "Checked in"
+                    : "Pending";
+              const color = i <= activeIndex ? vip.color : "var(--color-slate-500)";
               return (
                 <div
                   key={`label-${vip.id}`}
                   className="absolute -translate-x-1/2 text-center"
-                  style={{
-                    left: corner.x,
-                    top: below ? corner.y + metrics.smallSize / 2 + 14 : undefined,
-                    bottom: below ? undefined : metrics.viewport.h - (corner.y - metrics.smallSize / 2 - 14),
-                  }}
+                  style={{ left: slot.x, top: slot.y + metrics.slotHeight / 2 + 14 }}
                 >
                   <p className="font-display text-xs font-semibold text-ink sm:text-sm">{vip.name}</p>
                   <p
                     className="text-[0.6rem] font-semibold uppercase tracking-[0.18em] transition-colors duration-500"
-                    style={{ color: i < activeIndex ? vip.color : "var(--color-slate-500)" }}
+                    style={{ color }}
                   >
-                    {i < activeIndex ? "Checked in" : "Scanning"}
+                    {status}
                   </p>
                 </div>
               );
             })}
+          {converged &&
+            VIPS.map((vip, i) => (
+              <FuseOrb key={vip.id} center={metrics.center} size={metrics.fuseSize} color={vip.color} delay={i * 0.06} />
+            ))}
         </div>
       </motion.div>
-
-      <AnimatePresence>
-        {phase === "spotlight" && <VipSpotlight key={VIPS[activeIndex].id} vip={VIPS[activeIndex]} />}
-      </AnimatePresence>
 
       {phase === "fusing" && <FusionFlash />}
 
@@ -156,15 +177,13 @@ export default function FaceRecognitionPage() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.25 }}
         >
-          <motion.img
-            src="/images/dost-logo.png"
-            alt="DOST Zamboanga Peninsula"
+          <motion.div
             initial={{ opacity: 0, scale: 0.55 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: "spring", duration: 0.9, bounce: 0.32, delay: 0.3 }}
-            className="h-40 w-40 object-contain mix-blend-multiply sm:h-56 sm:w-56"
-            style={{ filter: "drop-shadow(0 0 44px rgba(245,160,81,0.5))" }}
-          />
+          >
+            <LogoBadge size={192} glow />
+          </motion.div>
           <motion.p
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -182,9 +201,7 @@ export default function FaceRecognitionPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: LEAVE_DURATION_MS / 1000, ease: "easeInOut" }}
-          onAnimationComplete={() => {
-            window.location.href = "/";
-          }}
+          onAnimationComplete={onFinished}
         />
       )}
     </div>

@@ -12,7 +12,7 @@ export default function FusionFlash() {
       transition={{ duration: 1.5, times: [0, 0.4, 1], ease: "easeOut" }}
       style={{
         background:
-          "radial-gradient(circle at 50% 44%, rgba(255,255,255,0.95), rgba(245,160,81,0.5) 30%, rgba(61,151,214,0.28) 55%, transparent 72%)",
+          "radial-gradient(circle at 50% 44%, rgba(255,255,255,0.95), rgba(245,160,81,0.55) 30%, rgba(227,169,79,0.32) 55%, transparent 72%)",
       }}
     />
   );

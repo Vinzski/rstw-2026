@@ -12,7 +12,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // `php artisan serve` sits behind the ngrok/devtunnel proxy,
+        // which terminates HTTPS and forwards plain HTTP — without this,
+        // Laravel can't see the original request was HTTPS and builds
+        // `http://` asset URLs, which the browser then blocks as mixed
+        // content on the HTTPS tunnel page.
+        $middleware->trustProxies(at: '*');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

@@ -1,23 +1,38 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { User, Camera as CameraIcon } from "lucide-react";
+import { Lock, Camera as CameraIcon } from "lucide-react";
 import ScanOverlay from "./ScanOverlay";
+
+const BORDER_FILL_DURATION_S = 0.9;
 
 const SPRING = { type: "spring", stiffness: 190, damping: 24, mass: 1 };
 
 // One VIP's own frame — a single persistent element for their entire
 // time on stage, never unmounted. Its `rect` (left/top/size, in real
-// pixels — see useStageMetrics) just changes with `stage`, and the
-// `layout` prop turns that into a smooth FLIP animation: resting boxy
-// in its corner (idle) → lifted, growing, and rounding into a circle at
-// center for its turn (active) → landing back in its corner, now a lit
-// box (done) → drawn back to center once more, alongside its siblings,
-// rounding into an orb again (fusing).
+// pixels — see useStageMetrics) never actually changes once it lands in
+// its row slot: idle → active camera viewfinder → a lit box once
+// checked in, all in that same slot. For the final merge (fusing) it
+// just fades out right there rather than resizing into the shared
+// center circle — that circle is a separate element (see FuseOrb) that
+// fades/scales in fresh, so no single element ever has to animate a
+// portrait rectangle into a circle (which visibly warps into an
+// "oblong" blob mid-FLIP, since the two shapes don't share an aspect
+// ratio).
 export default function VipBox({ vip, stage, rect, stream, cameraError, onVerified, onRetryCamera }) {
   const videoRef = useRef(null);
   const isActive = stage === "active";
   const isFusing = stage === "fusing";
-  const isCircle = isActive || isFusing;
+  // The border only fills in once this VIP has actually verified — see
+  // FaceRecognitionPage's "confirming" sub-phase — not the instant their
+  // turn starts. `pathLength` only ever animates 0 → 1 once (this stays
+  // true from here on), so it never replays on later re-renders.
+  const reached = stage === "done" || isFusing;
+  const [borderFilled, setBorderFilled] = useState(false);
+  const boxRadius = "20%";
+  // Matches the CSS `20%` corner radius above, but in real px — an SVG
+  // rect needs actual numbers for rx/ry, not a percentage string.
+  const rx = rect.width * 0.2;
+  const ry = rect.height * 0.2;
 
   useEffect(() => {
     if (isActive && stream && videoRef.current) {
@@ -25,39 +40,34 @@ export default function VipBox({ vip, stage, rect, stream, cameraError, onVerifi
     }
   }, [isActive, stream]);
 
+  // Soft ambient bloom behind the crisp neon outline (below) — both use
+  // this VIP's own color throughout, scanning included, per their
+  // request.
   const glow =
     stage === "done"
-      ? `0 0 28px 7px ${vip.color}55, 0 0 0 3px ${vip.color}`
+      ? `0 0 28px 7px ${vip.color}55`
       : isActive
-        ? `0 0 55px 16px ${vip.color}55, 0 0 0 3px ${vip.color}`
+        ? `0 0 60px 18px ${vip.color}55`
         : isFusing
-          ? `0 0 80px 26px ${vip.color}aa, 0 0 0 4px ${vip.color}`
+          ? `0 0 80px 26px ${vip.color}aa`
           : "0 0 0 2px rgba(12,26,51,0.1)";
 
   return (
     <motion.div
       layout
-      transition={SPRING}
+      transition={{ layout: SPRING, opacity: { duration: 0.5, ease: "easeOut" } }}
+      animate={{ opacity: isFusing ? 0 : 1 }}
       style={{
         position: "absolute",
         left: rect.x,
         top: rect.y,
-        width: rect.size,
-        height: rect.size,
-        borderRadius: isCircle ? "50%" : "22%",
+        width: rect.width,
+        height: rect.height,
+        borderRadius: boxRadius,
         boxShadow: glow,
       }}
       className="overflow-hidden bg-navy-900/5 transition-shadow duration-700 ease-out"
     >
-      {isActive && (
-        <motion.span
-          className="pointer-events-none absolute -inset-2 rounded-full"
-          animate={{ opacity: [0.3, 0.75, 0.3], scale: [1, 1.06, 1] }}
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          style={{ boxShadow: `0 0 0 2px ${vip.color}77` }}
-        />
-      )}
-
       {isActive && stream && !cameraError && (
         <video ref={videoRef} autoPlay playsInline muted className="h-full w-full -scale-x-100 object-cover" />
       )}
@@ -70,7 +80,7 @@ export default function VipBox({ vip, stage, rect, stream, cameraError, onVerifi
         <button
           type="button"
           onClick={onRetryCamera}
-          className="grid h-full w-full place-items-center bg-red-600/10 px-3 text-center text-[0.6rem] font-semibold uppercase leading-tight tracking-wide text-red-700"
+          className="grid h-full w-full place-items-center bg-paper-50 px-3 text-center text-[0.6rem] font-semibold uppercase leading-tight tracking-wide text-red-600"
         >
           Camera blocked
           <br />
@@ -80,43 +90,115 @@ export default function VipBox({ vip, stage, rect, stream, cameraError, onVerifi
 
       {stage === "idle" && (
         <div className="grid h-full w-full place-items-center">
-          <User className="h-1/3 w-1/3 text-navy-900/15" />
+          <Lock className="h-1/4 w-1/4 text-navy-900/15" />
         </div>
       )}
 
       {(stage === "done" || isFusing) && (
-        <div
-          className="grid h-full w-full place-items-center"
-          style={{ background: `linear-gradient(150deg, ${vip.color}33, ${vip.color}77)` }}
-        >
-          {isFusing ? (
-            // The merge reads as "combining into one" rather than "four
-            // people," so each orb becomes the org's own mark instead of
-            // a person silhouette the instant it starts converging.
-            <motion.img
-              key="logo"
-              src="/images/dost-logo.png"
-              alt="DOST Zamboanga Peninsula"
-              initial={{ opacity: 0, scale: 0.7 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ type: "spring", duration: 0.5, bounce: 0.4 }}
-              className="h-1/2 w-1/2 object-contain mix-blend-multiply"
-            />
-          ) : (
-            <motion.div
-              key="person"
-              initial={{ opacity: 0, scale: 0.7 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ type: "spring", duration: 0.5, bounce: 0.4 }}
-              className="grid h-1/3 w-1/3 place-items-center"
-            >
-              <User className="h-full w-full" style={{ color: vip.color }} />
-            </motion.div>
-          )}
+        <div className="relative h-full w-full">
+          {/* Wipes open top-to-bottom rather than a plain fade, so the
+              photo reads as "just revealed" the instant verification
+              lands, not merely appearing. */}
+          <motion.img
+            src={vip.image}
+            alt={vip.name}
+            initial={{ clipPath: "inset(0 0 100% 0)", scale: 1.08 }}
+            animate={{ clipPath: "inset(0 0 0% 0)", scale: 1 }}
+            transition={{ duration: 2.2, ease: [0.16, 1, 0.3, 1] }}
+            className="h-full w-full object-cover"
+          />
+          {/* A quick flash of the VIP's own color, blooming out from
+              behind the photo and fading — the same "verified" beat as
+              ScanOverlay's checkmark pulse, echoed here. */}
+          <motion.span
+            className="pointer-events-none absolute inset-0"
+            initial={{ opacity: 0.85 }}
+            animate={{ opacity: 0 }}
+            transition={{ duration: 2.0, ease: "easeOut" }}
+            style={{ background: vip.color }}
+          />
         </div>
       )}
 
       {isActive && stream && !cameraError && <ScanOverlay onDone={onVerified} />}
+
+      {/* The border itself "fills in" around the panel the instant this
+          VIP verifies — the confirmation that they're checked in, before
+          the connector (see RowConnectors) travels onward to the next
+          panel. Rendered last (on top of ScanOverlay's own orange HUD)
+          so it's never covered or color-confused by it. */}
+      <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
+        {/* A full, already-complete neon outline that just glows/pulses
+            while this VIP is being scanned — decorative, not a progress
+            indicator. The actual fill-in (below) only plays once the
+            scan itself is done, so the two reads stay distinct: "being
+            scanned" vs. "verified." */}
+        {isActive && (
+          <motion.rect
+            x={1.5}
+            y={1.5}
+            width={Math.max(rect.width - 3, 0)}
+            height={Math.max(rect.height - 3, 0)}
+            rx={rx}
+            ry={ry}
+            fill="none"
+            stroke={vip.color}
+            strokeWidth="2.5"
+            animate={{ opacity: [0.55, 1, 0.55] }}
+            transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+            style={{
+              filter: `drop-shadow(0 0 4px ${vip.color}) drop-shadow(0 0 12px ${vip.color}) drop-shadow(0 0 22px ${vip.color}bb)`,
+            }}
+          />
+        )}
+
+        <motion.rect
+          x={1.5}
+          y={1.5}
+          width={Math.max(rect.width - 3, 0)}
+          height={Math.max(rect.height - 3, 0)}
+          rx={rx}
+          ry={ry}
+          fill="none"
+          stroke={vip.color}
+          strokeWidth="3"
+          initial={{ pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: reached ? 1 : 0, opacity: reached ? 1 : 0 }}
+          transition={{ duration: BORDER_FILL_DURATION_S, ease: "easeOut" }}
+          onAnimationComplete={() => reached && setBorderFilled(true)}
+          style={{ filter: `drop-shadow(0 0 5px ${vip.color})` }}
+        />
+
+        {/* A brief flash + outward pulse the instant the border finishes
+            filling. */}
+        {borderFilled && (
+          <motion.rect
+            x={1.5}
+            y={1.5}
+            width={Math.max(rect.width - 3, 0)}
+            height={Math.max(rect.height - 3, 0)}
+            rx={rx}
+            ry={ry}
+            fill="none"
+            stroke={vip.color}
+            strokeWidth="3"
+            initial={{ opacity: 0.9, scale: 1 }}
+            animate={{ opacity: 0, scale: 1.06 }}
+            transition={{ duration: 0.55, ease: "easeOut" }}
+            style={{ transformOrigin: `${rect.width / 2}px ${rect.height / 2}px` }}
+          />
+        )}
+      </svg>
+
+      {borderFilled && (
+        <motion.span
+          className="pointer-events-none absolute inset-0"
+          initial={{ opacity: 0.55 }}
+          animate={{ opacity: 0 }}
+          transition={{ duration: 0.45, ease: "easeOut" }}
+          style={{ background: vip.color }}
+        />
+      )}
     </motion.div>
   );
 }
