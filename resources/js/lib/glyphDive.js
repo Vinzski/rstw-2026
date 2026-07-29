@@ -142,9 +142,20 @@ function analyzeGlyph(ch, fontStyle, fontWeight, fontFamily) {
 // Locates the glyph's largest enclosed counter within `el`'s own border
 // box (the per-character span), or null when the letter has none.
 function glyphCounterInBox(el) {
-  const ch = el.textContent?.trim();
-  if (!ch || ch.length !== 1) return null;
+  const raw = el.textContent?.trim();
+  if (!raw || raw.length !== 1) return null;
   const style = getComputedStyle(el);
+  // The rasterized sample has to match what's actually on screen, not just
+  // the literal DOM character — a `text-transform: uppercase` ancestor (the
+  // About chapter's body copy, e.g.) renders this "o" as a capital O, and a
+  // lowercase counter's position/shape is a poor stand-in for the capital's,
+  // reading as the reveal circle sitting off-center inside the visible letter.
+  const ch =
+    style.textTransform === "uppercase"
+      ? raw.toUpperCase()
+      : style.textTransform === "lowercase"
+        ? raw.toLowerCase()
+        : raw;
   const info = analyzeGlyph(ch, style.fontStyle, style.fontWeight, style.fontFamily);
   if (!info) return null;
   const s = parseFloat(style.fontSize) / GLYPH_SAMPLE_PX;

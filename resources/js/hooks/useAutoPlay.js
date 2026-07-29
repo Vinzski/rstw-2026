@@ -163,8 +163,21 @@ export default function useAutoPlay(lenisRef) {
   const rewind = useCallback(() => {
     releaseOverride();
     setIsRewinding(true);
-    if (lenisRef?.current) lenisRef.current.scrollTo(0, { duration: REWIND_TOTAL_S });
-    else window.scrollTo({ top: 0, behavior: "smooth" });
+    // `isRewinding` flipping true is what makes CinematicLayers force-mount
+    // every chapter (see forceMountAll there) — at this point in the tour
+    // Intro and About have long since been lazily unmounted, so that's a
+    // real synchronous remount (images, glyph-dive measurement) that still
+    // needs to land. Kicking off the 24s scroll glide in this same tick
+    // would run it right on top of that remount's own commit, stealing the
+    // frame and reading as a screen-wide flicker right as the rewind
+    // begins — starting the glide a couple of frames later instead gives
+    // the remount a chance to actually paint first.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (lenisRef?.current) lenisRef.current.scrollTo(0, { duration: REWIND_TOTAL_S });
+        else window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    });
     stepTimerRef.current = setTimeout(() => {
       setIsPlaying(false);
       setIsRewinding(false);
