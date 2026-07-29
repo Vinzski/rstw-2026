@@ -83,7 +83,7 @@ export const locations = {
   calamansi: { blue: "calamansi blue.png", red: "calamansi red.png", yellow: "calamansi yellow.png" },
   malamawi: { blue: "malamawi boardwalk blue.png", orange: "malamawi boardwalk orange.png", red: "malamawi boardwalk red.png" },
   pagsalabuk: { blue: "pgsalabuk fountain blue.png", red: "pagsalabuk fountain red.png", yellow: "pagsalabuk fountain yellow.png" },
-  puntaDeDesembarco: { default: "puntu de desembarco.png" },
+  puntaDeDesembarco: { default: "optimized/puntu de desembarco.png" },
   rubber: { blue: "rubber blue.png", orange: "rubber orange.png", red: "rubber red.png" },
   tamban: { default: "tamban.png" },
   unityPark: { multicolor: "unity park multicolor.png", red: "unity park red.png", yellow: "unity park yellow.png" },

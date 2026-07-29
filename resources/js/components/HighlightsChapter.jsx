@@ -1,10 +1,8 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { motion, useTransform, useMotionValue, useMotionValueEvent, animate } from "framer-motion";
-import BeatDots from "./BeatDots";
+import { motion, useTransform, useMotionValue, animate } from "framer-motion";
 import DiveText from "./DiveText";
 import { mapRange, mapRangeSmooth } from "../lib/scroll";
 import { highlights, pillarBeatFadeFrac, beatDiveFrac } from "../data/content";
-import { el, motifs } from "../lib/elements";
 import { useGlyphDive, NULL_DIVE } from "../lib/glyphDive";
 
 const COUNT = highlights.length;
@@ -28,56 +26,67 @@ const DIVE_GLYPHS = [
 
 // Each highlight gets its own brand color, the same treatment as the
 // Pillars chapter, so the four cards read as distinct beats rather than
-// the same orange card repeated four times. `fillMotif` fills whichever
-// side the card's text isn't on.
+// the same orange card repeated four times.
 const HIGHLIGHT_THEME = [
-  { text: "text-sky-600", gradient: "from-sky-500 to-sky-600", glow: "shadow-sky-600/20", dot: "bg-sky-500", fillMotif: motifs.lightbulb.blue },
-  { text: "text-red-600", gradient: "from-red-500 to-red-700", glow: "shadow-red-700/20", dot: "bg-red-600", fillMotif: motifs.star.red },
-  { text: "text-orange-600", gradient: "from-orange-500 to-orange-700", glow: "shadow-orange-700/20", dot: "bg-orange-500", fillMotif: motifs.bolt.orange },
-  { text: "text-navy-700", gradient: "from-navy-700 to-navy-900", glow: "shadow-navy-900/20", dot: "bg-navy-800", fillMotif: motifs.windmill.navy },
+  { text: "text-sky-600", gradient: "from-sky-500 to-sky-600", glow: "shadow-sky-600/20" },
+  { text: "text-red-600", gradient: "from-red-500 to-red-700", glow: "shadow-red-700/20" },
+  { text: "text-orange-600", gradient: "from-orange-500 to-orange-700", glow: "shadow-orange-700/20" },
+  { text: "text-navy-700", gradient: "from-navy-700 to-navy-900", glow: "shadow-navy-900/20" },
 ];
 
-// Real event photos (RSTW 2025), replacing the abstract side motif on the
-// two cards whose subjects — past demos, past forums — actually have
-// photos to show. Scattered, not stacked: every photo gets its own clear
-// patch of ground with real gaps between them, so all three are visible
-// (and independently hoverable) at once, rather than overlapping and
-// hiding most of each other behind whichever one happens to be on top.
+// Real event photos (RSTW 2025), replacing the abstract side motif on
+// every card — each beat gets its own scattered, not stacked, cluster:
+// every photo gets its own clear patch of ground with real gaps between
+// them, so all of them are visible (and independently hoverable) at once,
+// rather than overlapping and hiding most of each other behind whichever
+// one happens to be on top. Sized to actually fill the side the text isn't
+// on rather than sit as a small accent in the corner of it.
 const EVENT_PHOTOS_BASE = "/images/RSTW 2025";
 
-// S&T Fair & Exhibits — two landscape photos of last year's fair,
-// scattered the same non-overlapping way as the other two photo cards
-// (a smaller footprint since there are only two of them, but the same
-// "real photos, popping in, all visible" treatment).
+// S&T Fair & Exhibits — two landscape photos of last year's fair, the
+// same scattered, non-overlapping treatment as the other photo cards (a
+// smaller footprint since there are only two of them).
 const EXHIBIT_FAN = [
-  { file: "553579800_1210302201144784_7655861267300697454_n.jpg", rotate: -6, x: -150, y: -70 },
-  { file: "555441927_1210303541144650_5650172245905539790_n.jpg", rotate: 6, x: 150, y: 80 },
+  { file: "553579800_1210302201144784_7655861267300697454_n.jpg", rotate: -6, x: -198, y: -92 },
+  { file: "555441927_1210303541144650_5650172245905539790_n.jpg", rotate: 6, x: 198, y: 106 },
 ];
-const EXHIBIT_CARD_CLASS = "h-28 w-48 xl:h-40 xl:w-64";
-const EXHIBIT_WRAP_CLASS = "h-[24rem] w-[34rem] xl:h-[28rem] xl:w-[40rem]";
+const EXHIBIT_CARD_CLASS = "h-36 w-64 xl:h-56 xl:w-80";
+const EXHIBIT_WRAP_CLASS = "h-[28rem] w-[40rem] xl:h-[34rem] xl:w-[48rem]";
 
-// Tech Demos & Talks — three portrait photos scattered around a shared
-// footprint with small, varied rotations, positioned so no two ever
-// overlap (checked against each card's actual box, not just eyeballed).
+// Tech Demos & Talks — three landscape photos, the same card size and
+// scattered, non-overlapping treatment as the other three photo cards
+// (its own distinct arrangement so no two of the four decks read as the
+// same layout reused).
 const DEMO_FAN = [
-  { file: "553749858_1209289121246092_1791305236642796142_n.jpg", rotate: -9, x: -190, y: -90 },
-  { file: "555016653_1210302777811393_6203462054861568929_n.jpg", rotate: 8, x: 190, y: -60 },
-  { file: "555842040_1210302321144772_124366025892235478_n.jpg", rotate: -4, x: 0, y: 260 },
+  { file: "553749858_1209289121246092_1791305236642796142_n.jpg", rotate: -9, x: -220, y: -130 },
+  { file: "555016653_1210302777811393_6203462054861568929_n.jpg", rotate: 8, x: 200, y: 20 },
+  { file: "555842040_1210302321144772_124366025892235478_n.jpg", rotate: -4, x: -140, y: 190 },
 ];
-const DEMO_CARD_CLASS = "h-56 w-44 xl:h-72 xl:w-56";
-const DEMO_WRAP_CLASS = "h-[34rem] w-[34rem] xl:h-[40rem] xl:w-[40rem]";
+const DEMO_CARD_CLASS = "h-36 w-64 xl:h-56 xl:w-80";
+const DEMO_WRAP_CLASS = "h-[28rem] w-[40rem] xl:h-[34rem] xl:w-[48rem]";
 
 // Regional Forums — three landscape photos from a 2025 regional awarding
-// ceremony, scattered the same non-overlapping way as the Demos card
-// (this card doesn't need the same exact composition, just the same
-// "real photos, popping in, all visible" treatment).
+// ceremony, the same card size and scattered, non-overlapping treatment
+// as the other three photo cards, its own distinct arrangement.
 const FORUM_FAN = [
-  { file: "Screenshot 2026-07-22 081125.png", rotate: -6, x: -190, y: -90 },
-  { file: "Screenshot 2026-07-22 081159.png", rotate: 5, x: 170, y: -20 },
-  { file: "Screenshot 2026-07-22 081209.png", rotate: -3, x: -40, y: 170 },
+  { file: "optimized/Screenshot 2026-07-22 081125.jpg", rotate: -6, x: -230, y: -105 },
+  { file: "optimized/Screenshot 2026-07-22 081159.jpg", rotate: 5, x: 230, y: -70 },
+  { file: "optimized/Screenshot 2026-07-22 081209.jpg", rotate: -3, x: -25, y: 173 },
 ];
-const FORUM_CARD_CLASS = "h-28 w-48 xl:h-40 xl:w-64";
-const FORUM_WRAP_CLASS = "h-[24rem] w-[34rem] xl:h-[28rem] xl:w-[40rem]";
+const FORUM_CARD_CLASS = "h-36 w-64 xl:h-56 xl:w-80";
+const FORUM_WRAP_CLASS = "h-[28rem] w-[40rem] xl:h-[34rem] xl:w-[48rem]";
+
+// Innovation Competitions — three landscape photos from last year's
+// competition floor, the same scattered treatment as Regional Forums with
+// its own distinct arrangement so the two landscape decks don't read as
+// the same layout reused.
+const COMPETITION_FAN = [
+  { file: "554658171_1210302714478066_6490822275766403100_n.jpg", rotate: -7, x: -219, y: 104 },
+  { file: "554769814_1210302937811377_1578769193021880555_n.jpg", rotate: 6, x: 219, y: 104 },
+  { file: "555690458_1210303154478022_3063947240922966792_n.jpg", rotate: -3, x: 0, y: -173 },
+];
+const COMPETITION_CARD_CLASS = "h-36 w-64 xl:h-56 xl:w-80";
+const COMPETITION_WRAP_CLASS = "h-[28rem] w-[40rem] xl:h-[34rem] xl:w-[48rem]";
 
 // One scattered photo: pops in with a fade + grow + a rotation that
 // overshoots its resting angle and settles back, plus the usual small
@@ -197,9 +206,9 @@ function HighlightCard({ item, progress, index, theme, dive, prevDive, glyphRef,
       ? { fan: EXHIBIT_FAN, wrapClassName: EXHIBIT_WRAP_CLASS, cardClassName: EXHIBIT_CARD_CLASS }
       : index === 1
         ? { fan: FORUM_FAN, wrapClassName: FORUM_WRAP_CLASS, cardClassName: FORUM_CARD_CLASS }
-        : index === 3
-          ? { fan: DEMO_FAN, wrapClassName: DEMO_WRAP_CLASS, cardClassName: DEMO_CARD_CLASS }
-          : null;
+        : index === 2
+          ? { fan: COMPETITION_FAN, wrapClassName: COMPETITION_WRAP_CLASS, cardClassName: COMPETITION_CARD_CLASS }
+          : { fan: DEMO_FAN, wrapClassName: DEMO_WRAP_CLASS, cardClassName: DEMO_CARD_CLASS };
 
   return (
     <motion.div
@@ -221,28 +230,15 @@ function HighlightCard({ item, progress, index, theme, dive, prevDive, glyphRef,
             as the card itself, so it arrives and dives away with it. */}
         <div
           className={`pointer-events-none absolute top-1/2 hidden -translate-y-1/2 lg:block ${
-            index === 3
-              ? (onRight ? "left-24 xl:left-36" : "right-24 xl:right-36")
-              : index === 1 || index === 0
-                ? (onRight ? "left-14 xl:left-20" : "right-14 xl:right-20")
-                : (onRight ? "left-10 xl:left-16" : "right-10 xl:right-16")
+            onRight ? "left-10 xl:left-14" : "right-10 xl:right-14"
           }`}
         >
-          {photoFan ? (
-            <PhotoFan progress={progress} start={start} {...photoFan} />
-          ) : (
-            <img
-              src={el(theme.fillMotif)}
-              alt=""
-              aria-hidden="true"
-              className="h-64 w-64 object-contain opacity-90 drop-shadow-xl xl:h-80 xl:w-80"
-            />
-          )}
+          <PhotoFan progress={progress} start={start} {...photoFan} />
         </div>
 
         <div
-          className={`flex w-full max-w-2xl flex-col items-center gap-6 text-center sm:flex-row sm:gap-8 sm:text-left ${
-            onRight ? "sm:flex-row-reverse sm:items-start sm:text-right" : "sm:items-start"
+          className={`flex w-full max-w-4xl flex-col items-center gap-6 text-center sm:flex-row sm:items-start sm:gap-8 sm:text-left ${
+            onRight ? "sm:flex-row-reverse" : ""
           }`}
         >
           <div className={`relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br text-white shadow-xl sm:h-24 sm:w-24 ${theme.gradient} ${theme.glow}`}>
@@ -270,12 +266,6 @@ function HighlightCard({ item, progress, index, theme, dive, prevDive, glyphRef,
 // chapter's slice of the single master scroll track — there is no
 // document section of its own to pin.
 export default function HighlightsChapter({ progress, bgY, fgY }) {
-  const [beatIndex, setBeatIndex] = useState(0);
-  useMotionValueEvent(progress, "change", (p) => {
-    const idx = Math.min(COUNT - 1, Math.max(0, Math.floor(p * COUNT)));
-    setBeatIndex((prev) => (prev === idx ? prev : idx));
-  });
-
   const sceneRef = useRef(null);
   const glyphRefs = [useRef(null), useRef(null), useRef(null), useRef(null)];
   const sceneW = useMotionValue(1);
@@ -303,7 +293,6 @@ export default function HighlightsChapter({ progress, bgY, fgY }) {
   const dives = [dive0, dive1, dive2, dive3];
 
   const bgScale = useTransform(progress, (p) => mapRange(p, 0, 1, 1, 1.3));
-  const theme = HIGHLIGHT_THEME[beatIndex];
 
   return (
     <>
@@ -315,8 +304,6 @@ export default function HighlightsChapter({ progress, bgY, fgY }) {
         <div className="pointer-events-none absolute left-1/2 top-0 h-96 w-96 -translate-x-1/2 rounded-full bg-orange-500/10 blur-2xl" />
         <div className="noise-veil" />
       </motion.div>
-
-      <BeatDots count={COUNT} activeIndex={beatIndex} label="Event Highlights" fillClass={theme.dot} />
 
       <motion.div ref={sceneRef} style={{ y: fgY }} className="relative h-full">
         {highlights.map((item, i) => (

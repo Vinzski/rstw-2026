@@ -1,6 +1,5 @@
-import { useLayoutEffect, useRef, useState } from "react";
-import { motion, useTransform, useMotionValue, useMotionValueEvent } from "framer-motion";
-import BeatDots from "./BeatDots";
+import { useLayoutEffect, useRef } from "react";
+import { motion, useTransform, useMotionValue } from "framer-motion";
 import KineticText from "./KineticText";
 import { mapRange, mapRangeSmooth } from "../lib/scroll";
 import { pillars, pillarBeatFadeFrac, beatDiveFrac } from "../data/content";
@@ -33,22 +32,22 @@ const DIVE_GLYPHS = [
 // piece-by-piece design instead of one big flat image.
 const PILLAR_THEME = [
   {
-    text: "text-orange-600", border: "border-orange-500/30", bg: "bg-orange-500/10", fill: "bg-orange-500",
+    text: "text-orange-600", border: "border-orange-500/30", bg: "bg-orange-500/10",
     clusterGlow: "bg-orange-500/15", clusterRing: "border-orange-500/30", clusterDot: "bg-orange-500/70",
     clusterMotifs: [motifs.star.orange, motifs.bolt.orange, motifs.lotus.orange],
   },
   {
-    text: "text-red-600", border: "border-red-500/30", bg: "bg-red-500/10", fill: "bg-red-500",
+    text: "text-red-600", border: "border-red-500/30", bg: "bg-red-500/10",
     clusterGlow: "bg-red-500/15", clusterRing: "border-red-500/30", clusterDot: "bg-red-500/70",
     clusterMotifs: [motifs.kulintang.red, motifs.atom.red, motifs.star.red],
   },
   {
-    text: "text-sky-600", border: "border-sky-500/30", bg: "bg-sky-500/10", fill: "bg-sky-500",
+    text: "text-sky-600", border: "border-sky-500/30", bg: "bg-sky-500/10",
     clusterGlow: "bg-sky-500/15", clusterRing: "border-sky-500/30", clusterDot: "bg-sky-500/70",
     clusterMotifs: [motifs.palay.blue, motifs.lotus.blue, motifs.windmill.blue],
   },
   {
-    text: "text-gold-600", border: "border-gold-500/30", bg: "bg-gold-500/10", fill: "bg-gold-500",
+    text: "text-gold-600", border: "border-gold-500/30", bg: "bg-gold-500/10",
     clusterGlow: "bg-gold-500/15", clusterRing: "border-gold-500/30", clusterDot: "bg-gold-500/70",
     clusterMotifs: [motifs.bolt.yellow, motifs.atom.yellow, motifs.windmill.orange],
   },
@@ -280,12 +279,6 @@ function PillarBeat({ pillar, progress, index, theme, dive, prevDive, glyphRef, 
 // chapter's slice of the single master scroll track — there is no
 // document section of its own to pin.
 export default function PillarsChapter({ progress, bgY, fgY }) {
-  const [beatIndex, setBeatIndex] = useState(0);
-  useMotionValueEvent(progress, "change", (p) => {
-    const idx = Math.min(COUNT - 1, Math.max(0, Math.floor(p * COUNT)));
-    setBeatIndex((prev) => (prev === idx ? prev : idx));
-  });
-
   const sceneRef = useRef(null);
   const glyphRefs = [useRef(null), useRef(null), useRef(null), useRef(null)];
   const sceneW = useMotionValue(1);
@@ -320,8 +313,6 @@ export default function PillarsChapter({ progress, bgY, fgY }) {
   // slightly in motion, not just the foreground beats.
   const bgScale = useTransform(progress, (p) => mapRange(p, 0, 1, 1, 1.35));
 
-  const theme = PILLAR_THEME[beatIndex];
-
   return (
     <>
       <motion.div style={{ scale: bgScale, y: bgY }} className="absolute inset-0 bg-paper-50">
@@ -329,8 +320,6 @@ export default function PillarsChapter({ progress, bgY, fgY }) {
         <div className="animate-drift absolute -right-40 top-[-10%] h-[38rem] w-[38rem] rounded-full bg-sky-400/15 blur-2xl" />
         <div className="noise-veil" />
       </motion.div>
-
-      <BeatDots count={COUNT} activeIndex={beatIndex} label="Thematic Pillars" fillClass={theme.fill} />
 
       <motion.div ref={sceneRef} style={{ y: fgY }} className="relative h-full">
         {pillars.map((pillar, i) => (
