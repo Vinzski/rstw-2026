@@ -142,9 +142,20 @@ function analyzeGlyph(ch, fontStyle, fontWeight, fontFamily) {
 // Locates the glyph's largest enclosed counter within `el`'s own border
 // box (the per-character span), or null when the letter has none.
 function glyphCounterInBox(el) {
-  const ch = el.textContent?.trim();
-  if (!ch || ch.length !== 1) return null;
+  const raw = el.textContent?.trim();
+  if (!raw || raw.length !== 1) return null;
   const style = getComputedStyle(el);
+  // The rasterized sample has to match what's actually on screen, not just
+  // the literal DOM character — a `text-transform: uppercase` ancestor (the
+  // About chapter's body copy, e.g.) renders this "o" as a capital O, and a
+  // lowercase counter's position/shape is a poor stand-in for the capital's,
+  // reading as the reveal circle sitting off-center inside the visible letter.
+  const ch =
+    style.textTransform === "uppercase"
+      ? raw.toUpperCase()
+      : style.textTransform === "lowercase"
+        ? raw.toLowerCase()
+        : raw;
   const info = analyzeGlyph(ch, style.fontStyle, style.fontWeight, style.fontFamily);
   if (!info) return null;
   const s = parseFloat(style.fontSize) / GLYPH_SAMPLE_PX;
@@ -156,7 +167,7 @@ function glyphCounterInBox(el) {
 }
 
 function makeHandoff() {
-  return { x: motionValue(0), y: motionValue(0), rx: motionValue(0), ry: motionValue(0) };
+  return { x: motionValue(0), y: motionValue(0), rx: motionValue(0), ry: motionValue(0), full: motionValue(0) };
 }
 
 // Chapter-boundary dive state, keyed by the *outgoing* chapter's id:
@@ -301,8 +312,17 @@ export function useGlyphDive({ progress, sceneRef, glyphRef, start, end }) {
   const counterRy = useTransform([progress, diveScale, counterRyBase, holeFadeIn], ([p, s, r, fade]) =>
     p <= start ? 0 : s * r * fade,
   );
+  // Once local progress reaches this dive's own `end`, the counter has
+  // already grown to fully cover the viewport (that's what `endScale` was
+  // calibrated for) — the ellipse CinematicLayers clips the incoming
+  // layer to stops constraining anything visible from here on, all the
+  // way through this chapter's own EDGE_FADE window past the boundary.
+  // Flagging that lets the clip collapse to a flat "none" for that whole
+  // stretch instead of continuing to hand the compositor an ever-larger
+  // (but functionally no-op) shape to clip a full-viewport layer to.
+  const isOpen = useTransform(progress, (p) => (p >= end ? 1 : 0));
 
-  return { diveScale, diveOrigin, holeRadius, counterRx, counterRy, anchorX, anchorY };
+  return { diveScale, diveOrigin, holeRadius, counterRx, counterRy, anchorX, anchorY, isOpen };
 }
 
 // Mirrors a chapter's exit dive into its diveHandoffs slot, converting the
@@ -315,10 +335,12 @@ export function useDivePublisher(id, dive, fgY) {
   useMotionValueEvent(screenY, "change", (v) => target.y.set(v));
   useMotionValueEvent(dive.counterRx, "change", (v) => target.rx.set(v));
   useMotionValueEvent(dive.counterRy, "change", (v) => target.ry.set(v));
+  useMotionValueEvent(dive.isOpen, "change", (v) => target.full.set(v));
   useLayoutEffect(() => {
     target.x.set(dive.anchorX.get());
     target.y.set(screenY.get());
     target.rx.set(dive.counterRx.get());
     target.ry.set(dive.counterRy.get());
+    target.full.set(dive.isOpen.get());
   });
 }
