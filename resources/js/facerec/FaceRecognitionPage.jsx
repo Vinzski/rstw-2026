@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import BrandBorder from "../components/decor/BrandBorder";
 import { useCameraStream } from "./useCameraStream";
 import { useStageMetrics } from "./useStageMetrics";
@@ -8,6 +8,7 @@ import FusionFlash from "./FusionFlash";
 import RowConnectors from "./RowConnectors";
 import FuseOrb from "./FuseOrb";
 import LogoBadge from "./LogoBadge";
+import RadialLoader from "./RadialLoader";
 import { VIPS } from "./data";
 
 const FUSE_HOLD_MS = 700; // pause after the 4th verify, before converging
@@ -30,12 +31,17 @@ const FLOW_MS = 1600; // ~ RowConnectors' FLOW_DURATION_S
 export default function FaceRecognitionPage({ onFinished }) {
   const { stream, error, retry } = useCameraStream();
   const [activeIndex, setActiveIndex] = useState(0);
-  const [phase, setPhase] = useState("scanning"); // scanning | fusing | logo | leaving
+  // loading | scanning | fusing | logo | leaving — "loading" is the
+  // one-time radial boot screen, played once before VIP 1 starts (not
+  // repeated per VIP).
+  const [phase, setPhase] = useState("loading");
   const [subPhase, setSubPhase] = useState("scanning"); // scanning | confirming | traveling — see the handoff comment above
 
   const metrics = useStageMetrics(VIPS.length);
   const allVerified = activeIndex >= VIPS.length;
   const converged = phase === "fusing" || phase === "logo";
+
+  const handleLoaded = useCallback(() => setPhase("scanning"), []);
 
   // ScanOverlay itself already holds on its own "Identity Verified"
   // checkmark for a beat before calling this — so a scan completing goes
@@ -96,6 +102,9 @@ export default function FaceRecognitionPage({ onFinished }) {
   }
 
   function stageFor(i) {
+    // Nobody scans while the boot loader is still up — VIP 1 only goes
+    // "active" once it hands off via `handleLoaded`.
+    if (phase === "loading") return "idle";
     if (converged) return "fusing";
     if (i < activeIndex) return "done";
     // Confirming/traveling: this VIP has already verified — they read as
@@ -204,6 +213,8 @@ export default function FaceRecognitionPage({ onFinished }) {
           onAnimationComplete={onFinished}
         />
       )}
+
+      <AnimatePresence>{phase === "loading" && <RadialLoader onDone={handleLoaded} />}</AnimatePresence>
     </div>
   );
 }

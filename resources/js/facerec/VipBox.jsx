@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Lock, Camera as CameraIcon } from "lucide-react";
 import ScanOverlay from "./ScanOverlay";
+import { lighten, shiftHue } from "./colorUtils";
 
 const BORDER_FILL_DURATION_S = 0.9;
 
@@ -128,28 +129,57 @@ export default function VipBox({ vip, stage, rect, stream, cameraError, onVerifi
           panel. Rendered last (on top of ScanOverlay's own orange HUD)
           so it's never covered or color-confused by it. */}
       <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
-        {/* A full, already-complete neon outline that just glows/pulses
-            while this VIP is being scanned — decorative, not a progress
-            indicator. The actual fill-in (below) only plays once the
-            scan itself is done, so the two reads stay distinct: "being
-            scanned" vs. "verified." */}
+        {/* A full, already-complete neon-tube outline that continuously
+            chases around the border while this VIP is being scanned —
+            decorative, not a progress indicator. A real neon tube isn't
+            one flat hue: this blends a bright near-white core through
+            this VIP's own color and a shifted accent hue, tiled around
+            the perimeter and animated via native SVG SMIL (not
+            framer-motion — gradients aren't one of its animatable
+            elements) so the color band keeps traveling rather than just
+            fading in and out in place. The actual fill-in (below) only
+            plays once the scan itself is done, so the two reads stay
+            distinct: "being scanned" vs. "verified." */}
         {isActive && (
-          <motion.rect
-            x={1.5}
-            y={1.5}
-            width={Math.max(rect.width - 3, 0)}
-            height={Math.max(rect.height - 3, 0)}
-            rx={rx}
-            ry={ry}
-            fill="none"
-            stroke={vip.color}
-            strokeWidth="2.5"
-            animate={{ opacity: [0.55, 1, 0.55] }}
-            transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-            style={{
-              filter: `drop-shadow(0 0 4px ${vip.color}) drop-shadow(0 0 12px ${vip.color}) drop-shadow(0 0 22px ${vip.color}bb)`,
-            }}
-          />
+          <>
+            <linearGradient
+              id={`neon-${vip.id}`}
+              gradientUnits="userSpaceOnUse"
+              x1="0"
+              y1="0"
+              x2="56"
+              y2="0"
+              spreadMethod="repeat"
+            >
+              <animateTransform
+                attributeName="gradientTransform"
+                type="translate"
+                from="0 0"
+                to="56 0"
+                dur="1.6s"
+                repeatCount="indefinite"
+              />
+              <stop offset="0%" stopColor={lighten(vip.color, 0.85)} />
+              <stop offset="25%" stopColor={vip.color} />
+              <stop offset="55%" stopColor={shiftHue(vip.color, 40)} />
+              <stop offset="80%" stopColor={vip.color} />
+              <stop offset="100%" stopColor={lighten(vip.color, 0.85)} />
+            </linearGradient>
+            <rect
+              x={1.5}
+              y={1.5}
+              width={Math.max(rect.width - 3, 0)}
+              height={Math.max(rect.height - 3, 0)}
+              rx={rx}
+              ry={ry}
+              fill="none"
+              stroke={`url(#neon-${vip.id})`}
+              strokeWidth="3"
+              style={{
+                filter: `drop-shadow(0 0 4px ${vip.color}) drop-shadow(0 0 14px ${vip.color}) drop-shadow(0 0 26px ${vip.color}aa)`,
+              }}
+            />
+          </>
         )}
 
         <motion.rect
