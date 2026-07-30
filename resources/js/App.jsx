@@ -12,6 +12,7 @@ import CinematicTrack from "./components/CinematicTrack";
 import Footer from "./components/Footer";
 import { LenisProvider } from "./lib/lenisContext";
 import { VelocityProvider } from "./lib/velocityContext";
+import { AppReadyProvider } from "./lib/appReadyContext";
 import { HeroChromeRevealProvider } from "./lib/heroChromeContext";
 import useAutoPlay from "./hooks/useAutoPlay";
 import { chapters } from "./data/content";
@@ -113,39 +114,41 @@ export default function App() {
   return (
     <LenisProvider value={lenisRef}>
       <VelocityProvider value={velocity}>
-        <HeroChromeRevealProvider value={revealHeroChrome}>
-          <AnimatePresence>
-            {loading && <Loader onDone={handleLoaded} />}
-          </AnimatePresence>
-          {celebrating && <FireworksBurst onDone={() => setCelebrating(false)} />}
+        <AppReadyProvider value={!loading}>
+          <HeroChromeRevealProvider value={revealHeroChrome}>
+            <AnimatePresence>
+              {loading && <Loader onDone={handleLoaded} />}
+            </AnimatePresence>
+            {celebrating && <FireworksBurst onDone={() => setCelebrating(false)} />}
 
-          {!loading && <EmberField />}
-          <CustomCursor />
+            {!loading && <EmberField />}
+            <CustomCursor />
 
-          <div className="bg-motif-texture relative bg-paper-50">
-            <Navbar hidden={(isPlaying && !controlsVisible) || !heroChromeVisible} />
-            {!loading && (
-              <ProgressRail chapters={chapters} active={active} stepOverride={stepInfo} hidden={!heroChromeVisible} />
-            )}
-            {!loading && (
-              <AutoPlayButton
-                isPlaying={isPlaying}
-                controlsVisible={controlsVisible}
-                onStart={startAutoPlay}
-                onStop={stopAutoPlay}
-                hidden={!heroChromeVisible}
-              />
-            )}
-            <main>
-              <CinematicTrack
-                onActiveChange={setCinematicActive}
-                isAutoPlaying={isPlaying}
-                forceMountAll={isRewinding}
-              />
-            </main>
-            <Footer />
-          </div>
-        </HeroChromeRevealProvider>
+            <div className="bg-motif-texture relative bg-paper-50">
+              <Navbar hidden={(isPlaying && !controlsVisible) || !heroChromeVisible} />
+              {!loading && (
+                <ProgressRail chapters={chapters} active={active} stepOverride={stepInfo} hidden={!heroChromeVisible} />
+              )}
+              {!loading && (
+                <AutoPlayButton
+                  isPlaying={isPlaying}
+                  controlsVisible={controlsVisible}
+                  onStart={startAutoPlay}
+                  onStop={stopAutoPlay}
+                  hidden={!heroChromeVisible}
+                />
+              )}
+              <main>
+                <CinematicTrack
+                  onActiveChange={setCinematicActive}
+                  isAutoPlaying={isPlaying}
+                  forceMountAll={isRewinding}
+                />
+              </main>
+              <Footer />
+            </div>
+          </HeroChromeRevealProvider>
+        </AppReadyProvider>
       </VelocityProvider>
     </LenisProvider>
   );

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { el, elWord, letters } from "../lib/elements";
 import { BOOT_DURATION_MS } from "../lib/bootTiming";
+import { useAppReady } from "../lib/appReadyContext";
 
 // Placement of each separately-exported letterform PNG within the shared
 // RSTW lockup frame (2782x704 — the intrinsic size of the combined
@@ -348,6 +349,7 @@ function AmbientFireworks() {
 // mount (or under reduced motion) it just settles straight into that
 // finished state — see `hasPlayedTrainIntro`.
 export default function RstwAssembly({ title, className = "", onRevealed }) {
+  const appReady = useAppReady();
   const reduceMotion = useReducedMotion();
   const wrapRef = useRef(null);
   // Captured once at construction: whether this mount is actually going to
@@ -409,11 +411,20 @@ export default function RstwAssembly({ title, className = "", onRevealed }) {
     return () => clearTimeout(doneTimer);
   }, [reduceMotion, pieceDiveDelays]);
 
-  useEffect(() => {
-    if (phase === "done") onRevealedRef.current?.(startedAnimated);
-  }, [phase, startedAnimated]);
+  // The ring above runs (and finishes) on its own clock, in step with the
+  // boot Loader's countdown, regardless of the loader's own state — but
+  // the *reveal* that follows waits on both that ring being done AND the
+  // loader having actually cleared (`appReady`), whichever comes later.
+  // Without the latter, the flat wordmark's own pop-in spring (and the
+  // year, and everything staggered after it) would play out hidden
+  // behind the still-opaque loader and be fully settled — invisibly —
+  // by the time the wipe reveals the page, instead of visibly unfolding
+  // once the user can actually see it.
+  const revealed = phase === "done" && appReady;
 
-  const revealed = phase === "done";
+  useEffect(() => {
+    if (revealed) onRevealedRef.current?.(startedAnimated);
+  }, [revealed, startedAnimated]);
 
   return (
     <>
