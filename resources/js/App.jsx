@@ -6,6 +6,7 @@ import Navbar from "./components/Navbar";
 import ProgressRail from "./components/ProgressRail";
 import AutoPlayButton from "./components/AutoPlayButton";
 import EmberField from "./components/EmberField";
+import FireworksBurst from "./components/FireworksBurst";
 import CustomCursor from "./components/CustomCursor";
 import CinematicTrack from "./components/CinematicTrack";
 import Footer from "./components/Footer";
@@ -17,7 +18,15 @@ import { chapters } from "./data/content";
 
 export default function App() {
   const [loading, setLoading] = useState(true);
+  // Fires once, right as the boot countdown hands off — see
+  // FireworksBurst, which clears this itself once its own show is done.
+  const [celebrating, setCelebrating] = useState(false);
   const lenisRef = useRef(null);
+
+  const handleLoaded = useCallback(() => {
+    setLoading(false);
+    setCelebrating(true);
+  }, []);
 
   // The persistent chrome (nav logo, autoplay button, progress rail
   // corners) stays hidden until the hero's own boot sequence reveals it —
@@ -106,8 +115,9 @@ export default function App() {
       <VelocityProvider value={velocity}>
         <HeroChromeRevealProvider value={revealHeroChrome}>
           <AnimatePresence>
-            {loading && <Loader onDone={() => setLoading(false)} />}
+            {loading && <Loader onDone={handleLoaded} />}
           </AnimatePresence>
+          {celebrating && <FireworksBurst onDone={() => setCelebrating(false)} />}
 
           {!loading && <EmberField />}
           <CustomCursor />

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import BrandBorder from "../components/decor/BrandBorder";
 import { useCameraStream } from "./useCameraStream";
@@ -10,6 +10,7 @@ import { VIPS } from "./data";
 
 const HOLD_BEFORE_CLEAR_MS = 800; // once both verify, how long their own border-fill/flash gets before the panels start fading
 const CLEAR_FADE_S = 0.6; // the panels' own fade-out, once both are done
+const SUCCESS_SOUND_SRC = "/audio/success.mp3";
 
 // booting | scanning | clearing | logos | leaving — see the phase-by-
 // phase rundown above each transition's own effect below.
@@ -48,6 +49,12 @@ export default function FaceRecognitionPage({ onFinished }) {
 
   const handleBooted = useCallback(() => setPhase("scanning"), []);
 
+  // Both panels run off the same fixed scan timer, so they typically
+  // verify within the same tick of each other — playing this per-panel
+  // would fire it twice, nearly simultaneously. One shared "verified"
+  // cue for the pair instead, gated to whichever panel gets there first.
+  const successSoundPlayedRef = useRef(false);
+
   const handleVerified = useCallback((i) => {
     setVerified((prev) => {
       if (prev[i]) return prev;
@@ -55,6 +62,11 @@ export default function FaceRecognitionPage({ onFinished }) {
       next[i] = true;
       return next;
     });
+    if (!successSoundPlayedRef.current) {
+      successSoundPlayedRef.current = true;
+      const sound = new Audio(SUCCESS_SOUND_SRC);
+      sound.play().catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
