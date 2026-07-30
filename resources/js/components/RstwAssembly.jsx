@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { el, elWord, letters } from "../lib/elements";
-import { useAppReady } from "../lib/appReadyContext";
+import { BOOT_DURATION_MS } from "../lib/bootTiming";
 
 // Placement of each separately-exported letterform PNG within the shared
 // RSTW lockup frame (2782x704 — the intrinsic size of the combined
@@ -58,24 +58,35 @@ const SAMPLE_TIMES = Array.from({ length: SAMPLE_COUNT }, (_, i) => i / (SAMPLE_
 const START_ANGLE = -Math.PI / 2;
 
 // Formation: every piece rotates around the ring continuously from the
-// moment the sequence starts — there's no separate "sweep into place"
-// step distinct from the rotation, and no pause anywhere in it. Pieces
-// fade into visibility one at a time (left to right, R→S→T) while already
-// riding that same rotation, so the ring is always either not-yet-fully-
-// visible or turning, never both stopped *and* incomplete. Once the shared
-// rotation reaches its target angle (at least one full lap) it locks in
-// place all at once — that's the only stop in the whole sequence — and
-// only then do pieces start peeling off, one at a time, in slot order
-// starting from the top and going clockwise (the same direction the ring
-// was just turning), diving into the wordmark's slot and vanishing there.
+// moment the sequence starts, running the whole time the boot Loader's
+// own countdown is up (its ring sits small and centered; this ring
+// orbits in a much wider ellipse around it) — there's no separate
+// "sweep into place" step distinct from the rotation, and no pause
+// anywhere in it. Pieces fade into visibility one at a time (left to
+// right, R→S→T) while already riding that same rotation, so the ring is
+// always either not-yet-fully-visible or turning, never both stopped
+// *and* incomplete. Once the shared rotation reaches its target angle
+// (at least one full lap) it locks in place all at once — that's the
+// only stop in the whole sequence — and only then do pieces start
+// peeling off, one at a time, in slot order starting from the top and
+// going clockwise (the same direction the ring was just turning),
+// diving into the wordmark's slot and vanishing there. The dive-turn
+// gap between pieces is a fixed (not randomized) fraction of whatever's
+// left of BOOT_DURATION_MS after the rotation and the final dive, so the
+// very last piece always vanishes at the exact instant the loader's own
+// countdown reaches 0 — see DIVE_GAP below.
 const RING_ENTRY_STAGGER = 0.05; // per-piece fade-in start offset — assembles left to right
 const RING_ENTRY_FADE_DURATION = 0.5; // how long a piece takes to fade/scale up once its own turn to appear comes
 const RING_ROTATION_DURATION = 3.5; // wall-clock length of the one continuous, uninterrupted rotation
 const RING_ROTATION_LAPS = 1; // full laps completed by the time the rotation locks — "at least one full rotation"
 const DIVE_GAP_BASE = 0.4; // pause after the rotation locks before the top piece's own turn
-const DIVE_GAP_MIN = 0.16;
-const DIVE_GAP_MAX = 0.32; // randomized gap between one piece's dive-turn and the next
 const CENTER_DIVE_DURATION = 0.6;
+// Whatever's left of the shared boot duration after the rotation, the
+// pre-dive pause, and the last piece's own dive, split evenly across the
+// gaps between all the pieces' dive-turns — this is what pins the very
+// last piece's disappearance to the countdown's own 0.
+const DIVE_GAP =
+  (BOOT_DURATION_MS / 1000 - RING_ROTATION_DURATION - CENTER_DIVE_DURATION - DIVE_GAP_BASE) / (TRAIN_PIECES.length - 1);
 
 // Depth cue for the ring's "3D" read: pieces toward the near side of the
 // ellipse (bottom, facing the viewer) render bigger and brighter than the
@@ -337,7 +348,6 @@ function AmbientFireworks() {
 // mount (or under reduced motion) it just settles straight into that
 // finished state — see `hasPlayedTrainIntro`.
 export default function RstwAssembly({ title, className = "", onRevealed }) {
-  const appReady = useAppReady();
   const reduceMotion = useReducedMotion();
   const wrapRef = useRef(null);
   // Captured once at construction: whether this mount is actually going to
@@ -353,19 +363,13 @@ export default function RstwAssembly({ title, className = "", onRevealed }) {
   onRevealedRef.current = onRevealed;
 
   // Each piece's own wait, after the shared rotation locks in place, for
-  // its top-to-clockwise turn to dive — index 0 (the top slot) goes first,
-  // then each next slot clockwise, with a randomized (not metronomic) gap
-  // between turns. Computed once per (real) mount, same lifetime as the
-  // sequence.
-  const pieceDiveDelays = useMemo(() => {
-    const delays = new Array(TRAIN_PIECES.length);
-    let cumulative = DIVE_GAP_BASE;
-    for (let i = 0; i < TRAIN_PIECES.length; i++) {
-      delays[i] = cumulative;
-      cumulative += DIVE_GAP_MIN + Math.random() * (DIVE_GAP_MAX - DIVE_GAP_MIN);
-    }
-    return delays;
-  }, []);
+  // its top-to-clockwise turn to dive — index 0 (the top slot) goes
+  // first, then each next slot clockwise, a fixed DIVE_GAP apart so the
+  // last one always lands exactly on BOOT_DURATION_MS (see DIVE_GAP).
+  const pieceDiveDelays = useMemo(
+    () => TRAIN_PIECES.map((_, i) => DIVE_GAP_BASE + i * DIVE_GAP),
+    [],
+  );
 
   useLayoutEffect(() => {
     function measure() {
@@ -388,12 +392,14 @@ export default function RstwAssembly({ title, className = "", onRevealed }) {
       setPhase("done");
       return;
     }
-    if (!appReady) return;
 
-    // Every piece locks out of rotation at the same instant; the last one
-    // to actually finish is whichever has the largest dive-delay — the
-    // last slot in the top-to-clockwise order — so that's what the flat
-    // wordmark's reveal waits on.
+    // Starts immediately on mount — alongside the boot Loader's own
+    // countdown, not after it — so the pieces are already circling while
+    // the number is still counting down. Every piece locks out of
+    // rotation at the same instant; the last one to actually finish is
+    // whichever has the largest dive-delay — the last slot in the
+    // top-to-clockwise order — which by construction (see DIVE_GAP) lands
+    // at BOOT_DURATION_MS, the same moment the countdown hits 0.
     const travelEnd = RING_ROTATION_DURATION + pieceDiveDelays[pieceDiveDelays.length - 1] + CENTER_DIVE_DURATION;
     const doneTimer = setTimeout(() => {
       hasPlayedTrainIntro = true;
@@ -401,7 +407,7 @@ export default function RstwAssembly({ title, className = "", onRevealed }) {
     }, travelEnd * 1000);
 
     return () => clearTimeout(doneTimer);
-  }, [appReady, reduceMotion, pieceDiveDelays]);
+  }, [reduceMotion, pieceDiveDelays]);
 
   useEffect(() => {
     if (phase === "done") onRevealedRef.current?.(startedAnimated);
@@ -434,25 +440,32 @@ export default function RstwAssembly({ title, className = "", onRevealed }) {
 
       {!reduceMotion &&
         createPortal(
-          <div className="pointer-events-none fixed inset-0 z-[65]">
-            {phase === "travel" &&
-              appReady &&
-              target &&
-              orbit &&
-              TRAIN_PIECES.map((piece, i) => (
-                <TrainPiece
-                  key={piece.key}
-                  src={piece.src}
-                  index={i}
-                  total={TRAIN_PIECES.length}
-                  orbit={orbit}
-                  target={target}
-                  diveDelay={pieceDiveDelays[i]}
-                  duration={RING_ROTATION_DURATION + pieceDiveDelays[i] + CENTER_DIVE_DURATION}
-                />
-              ))}
-            {revealed && <AmbientFireworks />}
-          </div>,
+          <>
+            {/* z-[110] — above the boot Loader's own z-[100], so the ring
+                is visible circling around its countdown rather than
+                hidden behind its opaque background. */}
+            {phase === "travel" && target && orbit && (
+              <div className="pointer-events-none fixed inset-0 z-[110]">
+                {TRAIN_PIECES.map((piece, i) => (
+                  <TrainPiece
+                    key={piece.key}
+                    src={piece.src}
+                    index={i}
+                    total={TRAIN_PIECES.length}
+                    orbit={orbit}
+                    target={target}
+                    diveDelay={pieceDiveDelays[i]}
+                    duration={RING_ROTATION_DURATION + pieceDiveDelays[i] + CENTER_DIVE_DURATION}
+                  />
+                ))}
+              </div>
+            )}
+            {revealed && (
+              <div className="pointer-events-none fixed inset-0 z-[65]">
+                <AmbientFireworks />
+              </div>
+            )}
+          </>,
           document.body,
         )}
     </>

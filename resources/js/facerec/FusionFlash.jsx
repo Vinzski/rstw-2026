@@ -1,8 +1,8 @@
 import { motion } from "framer-motion";
 
-// The instant all four VIPs converge: a bright radial flash blooming
-// from where they meet, in the same brand colors as their own stones,
-// reading as "combined into one" rather than a generic screen-flash.
+// A bright radial flash blooming from center, in the site's own brand
+// colors — used wherever something needs to read as "combined into one"
+// rather than a generic screen-flash (see LogoFusion).
 export default function FusionFlash() {
   return (
     <motion.div

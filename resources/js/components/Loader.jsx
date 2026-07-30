@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { BOOT_DURATION_MS } from "../lib/bootTiming";
 
 const RING_R = 90;
 const CIRCUMFERENCE = 2 * Math.PI * RING_R;
+const LOAD_DURATION_MS = BOOT_DURATION_MS; // shared with RstwAssembly, so its circling pieces land in sync with this countdown
 
 export default function Loader({ onDone }) {
   const [progress, setProgress] = useState(0);
@@ -14,36 +16,16 @@ export default function Loader({ onDone }) {
     document.documentElement.style.overflow = "hidden";
 
     let raf;
-    let cancelled = false;
-    let ready = false;
     const start = performance.now();
-    const MIN_MS = 1300;
-
-    Promise.all([
-      document.fonts ? document.fonts.ready : Promise.resolve(),
-      new Promise((resolve) => {
-        if (document.readyState === "complete") resolve();
-        else window.addEventListener("load", resolve, { once: true });
-      }),
-    ]).then(() => {
-      ready = true;
-    });
 
     function tick(now) {
-      if (cancelled) return;
-      const elapsed = now - start;
-      setProgress((p) => {
-        if (p >= 100) return 100;
-        const target = ready && elapsed > MIN_MS ? 100 : Math.min(90, elapsed / 18);
-        const next = p + (target - p) * 0.09 + 0.12;
-        return Math.min(next, 100);
-      });
-      raf = requestAnimationFrame(tick);
+      const t = Math.min((now - start) / LOAD_DURATION_MS, 1);
+      setProgress(t * 100);
+      if (t < 1) raf = requestAnimationFrame(tick);
     }
     raf = requestAnimationFrame(tick);
 
     return () => {
-      cancelled = true;
       cancelAnimationFrame(raf);
       document.documentElement.style.overflow = prevOverflow;
     };
@@ -57,7 +39,7 @@ export default function Loader({ onDone }) {
     }
   }, [progress]);
 
-  const pct = Math.floor(progress);
+  const secondsLeft = Math.max(0, Math.ceil(((100 - progress) / 100) * 10));
   const dashOffset = CIRCUMFERENCE * (1 - progress / 100);
   const angle = -90 + (progress / 100) * 360;
 
@@ -120,10 +102,27 @@ export default function Loader({ onDone }) {
           </div>
 
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="font-display text-4xl font-semibold tabular-nums text-ink sm:text-5xl">
-              {pct}
-              <span className="text-xl text-slate-500 sm:text-2xl">%</span>
-            </span>
+            {/* `key={secondsLeft}` remounts both spans every tick, so
+                their own initial→animate replays fresh each second: a
+                soft ring pings outward and fades (the "beat"), while the
+                number itself springs from oversized back down to normal
+                — not just a swap, an actual thump in time with the count. */}
+            <motion.span
+              key={`ping-${secondsLeft}`}
+              className="absolute h-16 w-16 rounded-full bg-orange-400/50 sm:h-20 sm:w-20"
+              initial={{ scale: 0.6, opacity: 0.7 }}
+              animate={{ scale: 1.8, opacity: 0 }}
+              transition={{ duration: 0.7, ease: "easeOut" }}
+            />
+            <motion.span
+              key={secondsLeft}
+              initial={{ scale: 1.6 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 300, damping: 11 }}
+              className="relative font-display text-4xl font-semibold tabular-nums text-ink sm:text-5xl"
+            >
+              {secondsLeft}
+            </motion.span>
           </div>
         </div>
       </div>

@@ -6,46 +6,41 @@ import ScanOverlay from "./ScanOverlay";
 const BORDER_FILL_DURATION_S = 0.9;
 const SCAN_BEAM_LAP_S = 2.4; // one full trip around the frame while scanning
 
-const SPRING = { type: "spring", stiffness: 190, damping: 24, mass: 1 };
+// Full-bleed panels now (each VIP covers one entire half of the screen),
+// not a small rounded card — so the frame is a plain square-cornered
+// rect. `rx`/`ry` stay as params (rather than just hardcoding 0 in the
+// path calls below) purely so roundedRectPath's signature doesn't need
+// two versions.
+const CORNER_RADIUS = 0;
 
-// The same rounded-rect shape the border SVGs below trace, as a `path()`
-// string for CSS motion-path — clockwise from the top edge, so it reads
-// the same "direction of travel" as everything else in this app that
-// circles (see the hero's ring in RstwAssembly). `offset-rotate: auto`
-// then keeps a moving element's own local +x axis aligned with whichever
-// direction the path is heading at that point, corners included — that's
-// what lets the scan beam's tail always trail correctly behind it rather
-// than needing separate logic per side.
+// The same rect shape the border SVGs below trace, as a `path()` string
+// for CSS motion-path — clockwise from the top edge, so it reads the
+// same "direction of travel" as everything else in this app that circles
+// (see the hero's ring in RstwAssembly). `offset-rotate: auto` then keeps
+// a moving element's own local +x axis aligned with whichever direction
+// the path is heading at that point, corners included — that's what lets
+// the scan beam's tail always trail correctly behind it rather than
+// needing separate logic per side.
 function roundedRectPath(x, y, w, h, rx, ry) {
   return `M ${x + rx} ${y} L ${x + w - rx} ${y} A ${rx} ${ry} 0 0 1 ${x + w} ${y + ry} L ${x + w} ${y + h - ry} A ${rx} ${ry} 0 0 1 ${x + w - rx} ${y + h} L ${x + rx} ${y + h} A ${rx} ${ry} 0 0 1 ${x} ${y + h - ry} L ${x} ${y + ry} A ${rx} ${ry} 0 0 1 ${x + rx} ${y} Z`;
 }
 
-// One VIP's own frame — a single persistent element for their entire
-// time on stage, never unmounted. Its `rect` (left/top/size, in real
-// pixels — see useStageMetrics) never actually changes once it lands in
-// its row slot: idle → active camera viewfinder → a lit box once
-// checked in, all in that same slot. For the final merge (fusing) it
-// just fades out right there rather than resizing into the shared
-// center circle — that circle is a separate element (see FuseOrb) that
-// fades/scales in fresh, so no single element ever has to animate a
-// portrait rectangle into a circle (which visibly warps into an
-// "oblong" blob mid-FLIP, since the two shapes don't share an aspect
-// ratio).
+// One VIP's own full-screen-half frame — a single persistent element for
+// their entire time on stage, never unmounted (FaceRecognitionPage fades
+// the whole pair of panels out together once both have verified). Its
+// `rect` (left/top/size, in real pixels — see useStageMetrics) never
+// actually changes: idle → active camera viewfinder → a lit panel once
+// checked in, all in the same half of the screen.
 export default function VipBox({ vip, stage, rect, stream, cameraError, onVerified, onRetryCamera }) {
   const videoRef = useRef(null);
   const isActive = stage === "active";
-  const isFusing = stage === "fusing";
-  // The border only fills in once this VIP has actually verified — see
-  // FaceRecognitionPage's "confirming" sub-phase — not the instant their
-  // turn starts. `pathLength` only ever animates 0 → 1 once (this stays
-  // true from here on), so it never replays on later re-renders.
-  const reached = stage === "done" || isFusing;
+  // The border only fills in once this VIP has actually verified.
+  // `pathLength` only ever animates 0 → 1 once (this stays true from
+  // here on), so it never replays on later re-renders.
+  const reached = stage === "done";
   const [borderFilled, setBorderFilled] = useState(false);
-  const boxRadius = "20%";
-  // Matches the CSS `20%` corner radius above, but in real px — an SVG
-  // rect needs actual numbers for rx/ry, not a percentage string.
-  const rx = rect.width * 0.2;
-  const ry = rect.height * 0.2;
+  const rx = CORNER_RADIUS;
+  const ry = CORNER_RADIUS;
 
   useEffect(() => {
     if (isActive && stream && videoRef.current) {
@@ -61,22 +56,16 @@ export default function VipBox({ vip, stage, rect, stream, cameraError, onVerifi
       ? `0 0 28px 7px ${vip.color}55`
       : isActive
         ? `0 0 60px 18px ${vip.color}55`
-        : isFusing
-          ? `0 0 80px 26px ${vip.color}aa`
-          : "0 0 0 2px rgba(12,26,51,0.1)";
+        : "0 0 0 2px rgba(12,26,51,0.1)";
 
   return (
-    <motion.div
-      layout
-      transition={{ layout: SPRING, opacity: { duration: 0.5, ease: "easeOut" } }}
-      animate={{ opacity: isFusing ? 0 : 1 }}
+    <div
       style={{
         position: "absolute",
         left: rect.x,
         top: rect.y,
         width: rect.width,
         height: rect.height,
-        borderRadius: boxRadius,
         boxShadow: glow,
       }}
       className="overflow-hidden bg-navy-900/5 transition-shadow duration-700 ease-out"
@@ -107,7 +96,7 @@ export default function VipBox({ vip, stage, rect, stream, cameraError, onVerifi
         </div>
       )}
 
-      {(stage === "done" || isFusing) && (
+      {stage === "done" && (
         <div className="relative h-full w-full">
           {/* Wipes open top-to-bottom rather than a plain fade, so the
               photo reads as "just revealed" the instant verification
@@ -161,10 +150,9 @@ export default function VipBox({ vip, stage, rect, stream, cameraError, onVerifi
       )}
 
       {/* The border itself "fills in" around the panel the instant this
-          VIP verifies — the confirmation that they're checked in, before
-          the connector (see RowConnectors) travels onward to the next
-          panel. Rendered last (on top of ScanOverlay's own HUD) so it's
-          never covered by it. */}
+          VIP verifies — the confirmation that they're checked in.
+          Rendered last (on top of ScanOverlay's own HUD) so it's never
+          covered by it. */}
       <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
         <motion.rect
           x={1.5}
@@ -197,7 +185,7 @@ export default function VipBox({ vip, stage, rect, stream, cameraError, onVerifi
             stroke={vip.color}
             strokeWidth="3"
             initial={{ opacity: 0.9, scale: 1 }}
-            animate={{ opacity: 0, scale: 1.06 }}
+            animate={{ opacity: 0, scale: 1.03 }}
             transition={{ duration: 0.55, ease: "easeOut" }}
             style={{ transformOrigin: `${rect.width / 2}px ${rect.height / 2}px` }}
           />
@@ -213,6 +201,6 @@ export default function VipBox({ vip, stage, rect, stream, cameraError, onVerifi
           style={{ background: vip.color }}
         />
       )}
-    </motion.div>
+    </div>
   );
 }
