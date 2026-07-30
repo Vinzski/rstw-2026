@@ -109,25 +109,6 @@ export default function RadialLoader({ onDone }) {
       <div className="bg-grid absolute inset-0 opacity-70" />
       <div className="noise-veil" />
 
-      {/* 5 purple horizontal scan-laser lines */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        {[0.22, 0.38, 0.5, 0.62, 0.78].map((topPct, i) => (
-          <motion.div
-            key={i}
-            className="absolute inset-x-0 h-[3px]"
-            style={{
-              top: `${topPct * 100}%`,
-              background:
-                "linear-gradient(90deg, transparent, rgba(124,88,189,0.9) 20%, rgba(124,88,189,1) 50%, rgba(124,88,189,0.9) 80%, transparent)",
-              filter:
-                "drop-shadow(0 0 6px rgba(124,88,189,0.95)) drop-shadow(0 0 16px rgba(124,88,189,0.7))",
-            }}
-            animate={{ opacity: [0, 1, 0] }}
-            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut", delay: i * 0.35 }}
-          />
-        ))}
-      </div>
-
       <div className="relative flex h-60 w-60 items-center justify-center sm:h-80 sm:w-80">
         {/* The one true ring while loading — tracks pct exactly. Once
             dissolving starts it peels off to the left. */}
