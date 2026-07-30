@@ -28,10 +28,9 @@ const EYES = [
   { x: 64, y: 35 },
 ];
 
-export default function ScanOverlay({ onDone }) {
+export default function ScanOverlay({ onDone, color }) {
   const [pct, setPct] = useState(0);
   const [verified, setVerified] = useState(false);
-  const [coords, setCoords] = useState({ x: 512.0, y: 288.0 });
 
   useEffect(() => {
     const controls = animate(0, 100, {
@@ -42,16 +41,6 @@ export default function ScanOverlay({ onDone }) {
     });
     return () => controls.stop();
   }, []);
-
-  // Jittering fake coordinates — reads as "actively measuring," no
-  // real tracking data behind it.
-  useEffect(() => {
-    if (verified) return;
-    const id = setInterval(() => {
-      setCoords({ x: 420 + Math.random() * 180, y: 210 + Math.random() * 140 });
-    }, 160);
-    return () => clearInterval(id);
-  }, [verified]);
 
   useEffect(() => {
     if (!verified) return;
@@ -74,33 +63,27 @@ export default function ScanOverlay({ onDone }) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.35 }}
           >
-            {/* Sweeping scan lines — horizontal + vertical, looping the whole scan */}
+            {/* One sweeping scan line — a single clean pass reads as
+                "actively scanning" on its own; a second crossing line
+                (the old vertical sweep) was HUD clutter more than signal. */}
             <motion.div
-              className="pointer-events-none absolute inset-x-0 h-8"
+              className="pointer-events-none absolute inset-x-0 h-6"
               style={{
-                background:
-                  "linear-gradient(to bottom, transparent, rgba(245,160,81,0.8) 45%, rgba(255,255,255,0.95) 50%, rgba(245,160,81,0.8) 55%, transparent)",
-                boxShadow: "0 0 14px 3px rgba(245,160,81,0.5)",
+                background: `linear-gradient(to bottom, transparent, ${color}99 45%, #fff 50%, ${color}99 55%, transparent)`,
+                boxShadow: `0 0 10px 2px ${color}66`,
               }}
               initial={{ top: "-8%" }}
               animate={{ top: ["-8%", "100%"] }}
-              transition={{ duration: 1.7, repeat: Infinity, ease: "easeInOut" }}
-            />
-            <motion.div
-              className="pointer-events-none absolute inset-y-0 w-8"
-              style={{
-                background:
-                  "linear-gradient(to right, transparent, rgba(227,169,79,0.65) 45%, rgba(255,255,255,0.8) 50%, rgba(227,169,79,0.65) 55%, transparent)",
-                boxShadow: "0 0 14px 3px rgba(227,169,79,0.4)",
-              }}
-              initial={{ left: "-8%" }}
-              animate={{ left: ["-8%", "100%"] }}
-              transition={{ duration: 2.3, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+              transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
             />
 
             {/* Viewfinder corner brackets — pulled in from the literal square
                 corners since VipBox clips to a circle while active; at the
-                true corners these would sit entirely outside that mask. */}
+                true corners these would sit entirely outside that mask.
+                The one piece of "HUD" kept beyond the sweep and status
+                text: on their own they already read as "targeting a face"
+                without needing the coordinate readout the old design also
+                had here. */}
             <svg viewBox="0 0 100 100" className="pointer-events-none absolute inset-0 h-full w-full">
               {[
                 "M20,30 L20,20 L30,20",
@@ -112,7 +95,7 @@ export default function ScanOverlay({ onDone }) {
                   key={d}
                   d={d}
                   fill="none"
-                  stroke="rgba(245,160,81,0.7)"
+                  stroke={color}
                   strokeWidth="1.4"
                   strokeLinecap="round"
                   animate={{ opacity: [0.5, 1, 0.5] }}
@@ -120,7 +103,10 @@ export default function ScanOverlay({ onDone }) {
                 />
               ))}
 
-              {/* Iris rings, fading in once "Facial Mapping" starts */}
+              {/* Iris rings, fading in once "Facial Mapping" starts — the
+                  one cue that's specifically about a *face* (not just a
+                  generic framed object), so it stays even in the
+                  minimalist pass. */}
               <motion.g animate={{ opacity: showMesh ? 1 : 0 }} transition={{ duration: 0.5 }}>
                 {showIris &&
                   EYES.map((eye, i) => (
@@ -130,7 +116,7 @@ export default function ScanOverlay({ onDone }) {
                       cy={eye.y}
                       r="3.2"
                       fill="none"
-                      stroke="#e3a94f"
+                      stroke={color}
                       strokeWidth="0.5"
                       initial={{ scale: 0, opacity: 0 }}
                       animate={{ scale: 1, opacity: 0.85 }}
@@ -140,12 +126,6 @@ export default function ScanOverlay({ onDone }) {
                   ))}
               </motion.g>
             </svg>
-
-            {/* Coordinate readout — centered near the top rather than pinned
-                to a literal corner, so it stays inside the circular mask. */}
-            <div className="pointer-events-none absolute inset-x-0 top-[10%] text-center font-mono text-[0.5rem] leading-tight text-orange-200/70 sm:text-[0.6rem]">
-              <p>X:{coords.x.toFixed(1)} Y:{coords.y.toFixed(1)}</p>
-            </div>
 
             {/* Status label + confidence readout */}
             <div className="pointer-events-none absolute inset-x-0 bottom-2 flex flex-col items-center gap-1 sm:bottom-3">
@@ -161,7 +141,10 @@ export default function ScanOverlay({ onDone }) {
                   {status}
                 </motion.p>
               </AnimatePresence>
-              <p className="text-[0.5rem] font-semibold uppercase tracking-[0.15em] text-orange-200/80 sm:text-[0.6rem]">
+              <p
+                className="text-[0.5rem] font-semibold uppercase tracking-[0.15em] sm:text-[0.6rem]"
+                style={{ color }}
+              >
                 Confidence: {Math.round(pct)}%
               </p>
             </div>

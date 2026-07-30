@@ -4,8 +4,21 @@ import { Lock, Camera as CameraIcon } from "lucide-react";
 import ScanOverlay from "./ScanOverlay";
 
 const BORDER_FILL_DURATION_S = 0.9;
+const SCAN_BEAM_LAP_S = 2.4; // one full trip around the frame while scanning
 
 const SPRING = { type: "spring", stiffness: 190, damping: 24, mass: 1 };
+
+// The same rounded-rect shape the border SVGs below trace, as a `path()`
+// string for CSS motion-path — clockwise from the top edge, so it reads
+// the same "direction of travel" as everything else in this app that
+// circles (see the hero's ring in RstwAssembly). `offset-rotate: auto`
+// then keeps a moving element's own local +x axis aligned with whichever
+// direction the path is heading at that point, corners included — that's
+// what lets the scan beam's tail always trail correctly behind it rather
+// than needing separate logic per side.
+function roundedRectPath(x, y, w, h, rx, ry) {
+  return `M ${x + rx} ${y} L ${x + w - rx} ${y} A ${rx} ${ry} 0 0 1 ${x + w} ${y + ry} L ${x + w} ${y + h - ry} A ${rx} ${ry} 0 0 1 ${x + w - rx} ${y + h} L ${x + rx} ${y + h} A ${rx} ${ry} 0 0 1 ${x} ${y + h - ry} L ${x} ${y + ry} A ${rx} ${ry} 0 0 1 ${x + rx} ${y} Z`;
+}
 
 // One VIP's own frame — a single persistent element for their entire
 // time on stage, never unmounted. Its `rect` (left/top/size, in real
@@ -120,38 +133,39 @@ export default function VipBox({ vip, stage, rect, stream, cameraError, onVerifi
         </div>
       )}
 
-      {isActive && stream && !cameraError && <ScanOverlay onDone={onVerified} />}
+      {isActive && stream && !cameraError && <ScanOverlay onDone={onVerified} color={vip.color} />}
+
+      {/* While being scanned, the frame's own border stays blank — no
+          traced outline — and instead a thin line circles right along
+          that same border line endlessly, fading out behind it into a
+          short tail so the direction of travel (and the fact that it's
+          actively circling, not static) is obvious — without reading as a
+          big obvious glow. Riding the exact same path (x/y/rx/ry) as the
+          border-fill rects below, so it's never offset from the frame's
+          actual edge. Its own color always matches the border's color
+          elsewhere, so it reads as "this VIP's" light rather than a
+          generic effect. */}
+      {isActive && (
+        <motion.div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-0 top-0 h-[3px] w-32 rounded-full"
+          style={{
+            offsetPath: `path('${roundedRectPath(1.5, 1.5, Math.max(rect.width - 3, 0), Math.max(rect.height - 3, 0), rx, ry)}')`,
+            offsetRotate: "auto",
+            background: `linear-gradient(to right, transparent, ${vip.color}, #fff)`,
+            filter: `drop-shadow(0 0 2px ${vip.color})`,
+          }}
+          animate={{ offsetDistance: ["0%", "100%"] }}
+          transition={{ duration: SCAN_BEAM_LAP_S, repeat: Infinity, ease: "linear" }}
+        />
+      )}
 
       {/* The border itself "fills in" around the panel the instant this
           VIP verifies — the confirmation that they're checked in, before
           the connector (see RowConnectors) travels onward to the next
-          panel. Rendered last (on top of ScanOverlay's own orange HUD)
-          so it's never covered or color-confused by it. */}
+          panel. Rendered last (on top of ScanOverlay's own HUD) so it's
+          never covered by it. */}
       <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
-        {/* A full, already-complete neon outline that just glows/pulses
-            while this VIP is being scanned — decorative, not a progress
-            indicator. The actual fill-in (below) only plays once the
-            scan itself is done, so the two reads stay distinct: "being
-            scanned" vs. "verified." */}
-        {isActive && (
-          <motion.rect
-            x={1.5}
-            y={1.5}
-            width={Math.max(rect.width - 3, 0)}
-            height={Math.max(rect.height - 3, 0)}
-            rx={rx}
-            ry={ry}
-            fill="none"
-            stroke={vip.color}
-            strokeWidth="2.5"
-            animate={{ opacity: [0.55, 1, 0.55] }}
-            transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-            style={{
-              filter: `drop-shadow(0 0 4px ${vip.color}) drop-shadow(0 0 12px ${vip.color}) drop-shadow(0 0 22px ${vip.color}bb)`,
-            }}
-          />
-        )}
-
         <motion.rect
           x={1.5}
           y={1.5}
