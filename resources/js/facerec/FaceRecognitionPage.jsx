@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import BrandBorder from "../components/decor/BrandBorder";
 import { useCameraStream } from "./useCameraStream";
 import { useStageMetrics } from "./useStageMetrics";
@@ -8,8 +8,10 @@ import FusionFlash from "./FusionFlash";
 import RowConnectors from "./RowConnectors";
 import FuseOrb from "./FuseOrb";
 import LogoBadge from "./LogoBadge";
+import LoadingCountdown, { COUNTDOWN_DURATION_S } from "./LoadingCountdown";
 import { VIPS } from "./data";
 
+const COUNTDOWN_MS = COUNTDOWN_DURATION_S * 1000; // the ring's one sweep, before the first scan starts
 const FUSE_HOLD_MS = 700; // pause after the 4th verify, before converging
 const FUSE_DURATION_MS = 1500; // converge + flash (matches FusionFlash's own duration)
 const LOGO_DURATION_MS = 2000; // hold on the big DOST logo
@@ -30,12 +32,22 @@ const FLOW_MS = 1600; // ~ RowConnectors' FLOW_DURATION_S
 export default function FaceRecognitionPage({ onFinished }) {
   const { stream, error, retry } = useCameraStream();
   const [activeIndex, setActiveIndex] = useState(0);
-  const [phase, setPhase] = useState("scanning"); // scanning | fusing | logo | leaving
+  const [phase, setPhase] = useState("countdown"); // countdown | scanning | fusing | logo | leaving
   const [subPhase, setSubPhase] = useState("scanning"); // scanning | confirming | traveling — see the handoff comment above
 
   const metrics = useStageMetrics(VIPS.length);
   const allVerified = activeIndex >= VIPS.length;
   const converged = phase === "fusing" || phase === "logo";
+
+  // The camera stream itself already starts warming up on mount (see
+  // useCameraStream) regardless of this — the countdown's real job is
+  // just covering the screen for a beat before the first scan begins,
+  // not gating when permission gets requested.
+  useEffect(() => {
+    if (phase !== "countdown") return;
+    const t = setTimeout(() => setPhase("scanning"), COUNTDOWN_MS);
+    return () => clearTimeout(t);
+  }, [phase]);
 
   // ScanOverlay itself already holds on its own "Identity Verified"
   // checkmark for a beat before calling this — so a scan completing goes
@@ -96,6 +108,10 @@ export default function FaceRecognitionPage({ onFinished }) {
   }
 
   function stageFor(i) {
+    // Nobody's camera/scan starts until the countdown itself has actually
+    // finished covering the screen — otherwise the first VIP would be
+    // several seconds into their scan by the time it fades away.
+    if (phase === "countdown") return "idle";
     if (converged) return "fusing";
     if (i < activeIndex) return "done";
     // Confirming/traveling: this VIP has already verified — they read as
@@ -137,14 +153,16 @@ export default function FaceRecognitionPage({ onFinished }) {
             VIPS.map((vip, i) => {
               const slot = metrics.slots[i];
               const status =
-                i < activeIndex
-                  ? "Checked in"
-                  : i === activeIndex
-                    ? subPhase === "scanning"
-                      ? "Scanning"
-                      : "Checked in"
-                    : "Pending";
-              const color = i <= activeIndex ? vip.color : "var(--color-slate-500)";
+                phase === "countdown"
+                  ? "Pending"
+                  : i < activeIndex
+                    ? "Checked in"
+                    : i === activeIndex
+                      ? subPhase === "scanning"
+                        ? "Scanning"
+                        : "Checked in"
+                      : "Pending";
+              const color = phase !== "countdown" && i <= activeIndex ? vip.color : "var(--color-slate-500)";
               return (
                 <div
                   key={`label-${vip.id}`}
@@ -204,6 +222,8 @@ export default function FaceRecognitionPage({ onFinished }) {
           onAnimationComplete={onFinished}
         />
       )}
+
+      <AnimatePresence>{phase === "countdown" && <LoadingCountdown />}</AnimatePresence>
     </div>
   );
 }
