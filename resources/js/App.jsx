@@ -124,7 +124,13 @@ export default function App() {
             {!loading && <EmberField />}
             <CustomCursor />
 
-            <div className="bg-motif-texture relative bg-paper-50">
+            <div className="relative bg-paper-50">
+              {/* `.bg-motif-texture` itself carries no opacity — every
+                  other caller pairs it with its own overlay + opacity
+                  utility (see IntroChapter, AboutChapter, etc.); applying
+                  the class straight to this wrapper would otherwise wash
+                  out real content (Navbar/main/Footer) along with it. */}
+              <div className="bg-motif-texture pointer-events-none absolute inset-0 opacity-30" />
               <Navbar hidden={(isPlaying && !controlsVisible) || !heroChromeVisible} />
               {!loading && (
                 <ProgressRail chapters={chapters} active={active} stepOverride={stepInfo} hidden={!heroChromeVisible} />
