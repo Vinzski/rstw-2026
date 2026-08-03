@@ -169,7 +169,7 @@ export default function RadialLoader({ onDone }) {
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: dissolving ? 0 : 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="font-display text-xs font-semibold uppercase tracking-[0.3em] text-ink/70 sm:text-sm"
+        className="font-display text-xs font-semibold uppercase tracking-[0.3em] text-ink/80 drop-shadow-sm sm:text-sm"
       >
         {status}
       </motion.p>
