@@ -6,6 +6,7 @@ import Navbar from "./components/Navbar";
 import ProgressRail from "./components/ProgressRail";
 import AutoPlayButton from "./components/AutoPlayButton";
 import EmberField from "./components/EmberField";
+import FireworksBurst from "./components/FireworksBurst";
 import CustomCursor from "./components/CustomCursor";
 import CinematicTrack from "./components/CinematicTrack";
 import Footer from "./components/Footer";
@@ -18,7 +19,15 @@ import { chapters } from "./data/content";
 
 export default function App() {
   const [loading, setLoading] = useState(true);
+  // Fires once, right as the boot countdown hands off — see
+  // FireworksBurst, which clears this itself once its own show is done.
+  const [celebrating, setCelebrating] = useState(false);
   const lenisRef = useRef(null);
+
+  const handleLoaded = useCallback(() => {
+    setLoading(false);
+    setCelebrating(true);
+  }, []);
 
   // The persistent chrome (nav logo, autoplay button, progress rail
   // corners) stays hidden until the hero's own boot sequence reveals it —
@@ -108,13 +117,20 @@ export default function App() {
         <AppReadyProvider value={!loading}>
           <HeroChromeRevealProvider value={revealHeroChrome}>
             <AnimatePresence>
-              {loading && <Loader onDone={() => setLoading(false)} />}
+              {loading && <Loader onDone={handleLoaded} />}
             </AnimatePresence>
+            {celebrating && <FireworksBurst onDone={() => setCelebrating(false)} />}
 
             {!loading && <EmberField />}
             <CustomCursor />
 
-            <div className="bg-motif-texture relative bg-paper-50">
+            <div className="relative bg-paper-50">
+              {/* `.bg-motif-texture` itself carries no opacity — every
+                  other caller pairs it with its own overlay + opacity
+                  utility (see IntroChapter, AboutChapter, etc.); applying
+                  the class straight to this wrapper would otherwise wash
+                  out real content (Navbar/main/Footer) along with it. */}
+              <div className="bg-motif-texture pointer-events-none absolute inset-0 opacity-30" />
               <Navbar hidden={(isPlaying && !controlsVisible) || !heroChromeVisible} />
               {!loading && (
                 <ProgressRail chapters={chapters} active={active} stepOverride={stepInfo} hidden={!heroChromeVisible} />

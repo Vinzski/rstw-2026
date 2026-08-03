@@ -5,6 +5,7 @@ import { BOOT_DURATION_MS } from "../lib/bootTiming";
 const RING_R = 90;
 const CIRCUMFERENCE = 2 * Math.PI * RING_R;
 const LOAD_DURATION_MS = BOOT_DURATION_MS; // shared with RstwAssembly, so its circling pieces land in sync with this countdown
+const COUNTDOWN_SOUND_SRC = "/audio/countdown.mp3";
 
 export default function Loader({ onDone }) {
   const [progress, setProgress] = useState(0);
@@ -29,6 +30,12 @@ export default function Loader({ onDone }) {
       cancelAnimationFrame(raf);
       document.documentElement.style.overflow = prevOverflow;
     };
+  }, []);
+
+  useEffect(() => {
+    const sound = new Audio(COUNTDOWN_SOUND_SRC);
+    sound.play().catch(() => {});
+    return () => sound.pause();
   }, []);
 
   useEffect(() => {
