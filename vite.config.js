@@ -31,30 +31,37 @@ export default defineConfig(({ command, mode }) => {
       react(),
       tailwindcss(),
     ],
-  }
-})
 
-
-/*
-
-    // Only needed for `vite`/`npm run dev` — the ngrok/devtunnel URL
-    // changes every session, so it's read from `.env` (VITE_DEV_SERVER_ORIGIN)
-    // rather than hardcoded. Without `origin` set to the tunnel's own https
-    // URL, the `@vite()` directive bakes the unreachable loopback address
-    // (`http://[::1]:5173`) into every asset/HMR request, which the browser
-    // then blocks as cross-origin once it's loading the page from the
-    // tunnel's origin instead.
+    // `publicDir: 'public'` is the one always-needed piece in dev — it's
+    // what makes Vite's own server actually serve `public/`, so absolute
+    // paths like `.bg-motif-texture`'s background-image (resolved against
+    // whichever origin served the stylesheet — Vite's, in dev) don't 404.
+    //
+    // The `server` override below is a *separate*, opt-in concern: only
+    // for sharing dev through an ngrok/devtunnel URL, which changes every
+    // session, so it's read from `.env` (VITE_DEV_SERVER_ORIGIN) rather
+    // than hardcoded. It only applies when that var is actually set —
+    // forcing `origin`/`hmr.clientPort: 443` with nothing set makes the
+    // `@vite()` directive emit invalid asset URLs for plain local dev
+    // (no tunnel in front), breaking the page outright. With the var
+    // unset, Vite just uses its own correct built-in dev server defaults.
     ...(command === 'serve'
       ? {
           publicDir: 'public',
-          server: {
-            host: true,
-            port: 5173,
-            strictPort: true,
-            cors: true,
-            origin: env.VITE_DEV_SERVER_ORIGIN,
-            allowedHosts: true,
-            hmr: { clientPort: 443 },
-          },
+          ...(env.VITE_DEV_SERVER_ORIGIN
+            ? {
+                server: {
+                  host: true,
+                  port: 5173,
+                  strictPort: true,
+                  cors: true,
+                  origin: env.VITE_DEV_SERVER_ORIGIN,
+                  allowedHosts: true,
+                  hmr: { clientPort: 443 },
+                },
+              }
+            : {}),
         }
-      : { publicDir: false }), */
+      : { publicDir: false }),
+  }
+})

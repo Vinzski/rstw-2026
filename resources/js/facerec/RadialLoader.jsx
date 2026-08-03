@@ -106,7 +106,7 @@ export default function RadialLoader({ onDone }) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5, ease: "easeInOut" }}
     >
-      <div className="bg-grid absolute inset-0 opacity-70" />
+      <div className="bg-motif-texture absolute inset-0 opacity-70" />
       <div className="noise-veil" />
 
       <div className="relative flex h-60 w-60 items-center justify-center sm:h-80 sm:w-80">
