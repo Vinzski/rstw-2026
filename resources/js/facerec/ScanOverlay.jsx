@@ -8,6 +8,7 @@ import { Check } from "lucide-react";
 // this timeline once the real recognition backend exists.
 export const SCAN_DURATION = 4.3;
 const VERIFIED_HOLD_MS = 800;
+const SCAN_SOUND_SRC = "/audio/HUD Activation Sound Effect.mp3";
 
 // Status copy keyed to how far along the confidence readout is, rather
 // than run on its own separate timers — keeps the label always in sync
@@ -40,6 +41,15 @@ export default function ScanOverlay({ onDone, color }) {
       onComplete: () => setVerified(true),
     });
     return () => controls.stop();
+  }, []);
+
+  // Plays once for this VIP's scan, starting the instant their overlay
+  // mounts. Left to ring out on its own past verification — only cut
+  // short if this VIP's turn ends before the clip finishes.
+  useEffect(() => {
+    const sound = new Audio(SCAN_SOUND_SRC);
+    sound.play().catch(() => {});
+    return () => sound.pause();
   }, []);
 
   useEffect(() => {
