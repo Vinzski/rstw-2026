@@ -6,31 +6,25 @@ import ScanOverlay from "./ScanOverlay";
 const BORDER_FILL_DURATION_S = 0.9;
 const SCAN_BEAM_LAP_S = 2.4; // one full trip around the frame while scanning
 
-// Full-bleed panels now (each VIP covers one entire half of the screen),
-// not a small rounded card — so the frame is a plain square-cornered
-// rect. `rx`/`ry` stay as params (rather than just hardcoding 0 in the
-// path calls below) purely so roundedRectPath's signature doesn't need
-// two versions.
-const CORNER_RADIUS = 0;
-
-// The same rect shape the border SVGs below trace, as a `path()` string
-// for CSS motion-path — clockwise from the top edge, so it reads the
-// same "direction of travel" as everything else in this app that circles
-// (see the hero's ring in RstwAssembly). `offset-rotate: auto` then keeps
-// a moving element's own local +x axis aligned with whichever direction
-// the path is heading at that point, corners included — that's what lets
-// the scan beam's tail always trail correctly behind it rather than
-// needing separate logic per side.
-function roundedRectPath(x, y, w, h, rx, ry) {
-  return `M ${x + rx} ${y} L ${x + w - rx} ${y} A ${rx} ${ry} 0 0 1 ${x + w} ${y + ry} L ${x + w} ${y + h - ry} A ${rx} ${ry} 0 0 1 ${x + w - rx} ${y + h} L ${x + rx} ${y + h} A ${rx} ${ry} 0 0 1 ${x} ${y + h - ry} L ${x} ${y + ry} A ${rx} ${ry} 0 0 1 ${x + rx} ${y} Z`;
+// A circular viewfinder, centered in the middle of its half of the
+// screen (see useStageMetrics' circleSize) — `rect` is always a square
+// bounding box, and everything below traces its inscribed circle rather
+// than a rect.
+function circlePath(cx, cy, r) {
+  // Clockwise from the top — same "direction of travel" convention as
+  // everything else in this app that circles (see the hero's ring in
+  // RstwAssembly). `offset-rotate: auto` then keeps a moving element's
+  // own local +x axis aligned with whichever direction the path is
+  // heading, which is what lets the scan beam's tail trail correctly.
+  return `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx} ${cy + r} A ${r} ${r} 0 1 1 ${cx} ${cy - r} Z`;
 }
 
-// One VIP's own full-screen-half frame — a single persistent element for
-// their entire time on stage, never unmounted (FaceRecognitionPage fades
-// the whole pair of panels out together once both have verified). Its
-// `rect` (left/top/size, in real pixels — see useStageMetrics) never
-// actually changes: idle → active camera viewfinder → a lit panel once
-// checked in, all in the same half of the screen.
+// One VIP's own circular frame — a single persistent element for their
+// entire time on stage, never unmounted (FaceRecognitionPage fades the
+// whole pair of panels out together once both have verified, then holds
+// on their logos — see LogoFusion). Its `rect` (a square, in real pixels
+// — see useStageMetrics) never actually changes: idle → active camera
+// viewfinder → a lit panel once checked in, all in the same spot.
 export default function VipBox({ vip, stage, rect, stream, cameraError, onVerified, onRetryCamera }) {
   const videoRef = useRef(null);
   const isActive = stage === "active";
@@ -39,8 +33,13 @@ export default function VipBox({ vip, stage, rect, stream, cameraError, onVerifi
   // here on), so it never replays on later re-renders.
   const reached = stage === "done";
   const [borderFilled, setBorderFilled] = useState(false);
-  const rx = CORNER_RADIUS;
-  const ry = CORNER_RADIUS;
+  const radius = Math.max(Math.min(rect.width, rect.height) / 2 - 1.5, 0);
+  const cx = rect.width / 2;
+  const cy = rect.height / 2;
+  // A real path, not a `<circle>` + a CSS `transform: rotate()` hack, so
+  // "starts from the top" comes from the path's own M command instead of
+  // fighting Framer Motion for control of the element's transform.
+  const circleD = circlePath(cx, cy, radius);
 
   useEffect(() => {
     if (isActive && stream && videoRef.current) {
@@ -68,7 +67,7 @@ export default function VipBox({ vip, stage, rect, stream, cameraError, onVerifi
         height: rect.height,
         boxShadow: glow,
       }}
-      className="overflow-hidden bg-navy-900/5 transition-shadow duration-700 ease-out"
+      className="overflow-hidden rounded-full bg-navy-900/5 transition-shadow duration-700 ease-out"
     >
       {isActive && stream && !cameraError && (
         <video ref={videoRef} autoPlay playsInline muted className="h-full w-full -scale-x-100 object-cover" />
@@ -129,17 +128,17 @@ export default function VipBox({ vip, stage, rect, stream, cameraError, onVerifi
           that same border line endlessly, fading out behind it into a
           short tail so the direction of travel (and the fact that it's
           actively circling, not static) is obvious — without reading as a
-          big obvious glow. Riding the exact same path (x/y/rx/ry) as the
-          border-fill rects below, so it's never offset from the frame's
-          actual edge. Its own color always matches the border's color
-          elsewhere, so it reads as "this VIP's" light rather than a
+          big obvious glow. Riding the exact same circle (cx/cy/radius) as
+          the border-fill circles below, so it's never offset from the
+          frame's actual edge. Its own color always matches the border's
+          color elsewhere, so it reads as "this VIP's" light rather than a
           generic effect. */}
       {isActive && (
         <motion.div
           aria-hidden="true"
           className="pointer-events-none absolute left-0 top-0 h-[3px] w-32 rounded-full"
           style={{
-            offsetPath: `path('${roundedRectPath(1.5, 1.5, Math.max(rect.width - 3, 0), Math.max(rect.height - 3, 0), rx, ry)}')`,
+            offsetPath: `path('${circleD}')`,
             offsetRotate: "auto",
             background: `linear-gradient(to right, transparent, ${vip.color}, #fff)`,
             filter: `drop-shadow(0 0 2px ${vip.color})`,
@@ -154,13 +153,8 @@ export default function VipBox({ vip, stage, rect, stream, cameraError, onVerifi
           Rendered last (on top of ScanOverlay's own HUD) so it's never
           covered by it. */}
       <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
-        <motion.rect
-          x={1.5}
-          y={1.5}
-          width={Math.max(rect.width - 3, 0)}
-          height={Math.max(rect.height - 3, 0)}
-          rx={rx}
-          ry={ry}
+        <motion.path
+          d={circleD}
           fill="none"
           stroke={vip.color}
           strokeWidth="3"
@@ -174,20 +168,15 @@ export default function VipBox({ vip, stage, rect, stream, cameraError, onVerifi
         {/* A brief flash + outward pulse the instant the border finishes
             filling. */}
         {borderFilled && (
-          <motion.rect
-            x={1.5}
-            y={1.5}
-            width={Math.max(rect.width - 3, 0)}
-            height={Math.max(rect.height - 3, 0)}
-            rx={rx}
-            ry={ry}
+          <motion.path
+            d={circleD}
             fill="none"
             stroke={vip.color}
             strokeWidth="3"
             initial={{ opacity: 0.9, scale: 1 }}
             animate={{ opacity: 0, scale: 1.03 }}
             transition={{ duration: 0.55, ease: "easeOut" }}
-            style={{ transformOrigin: `${rect.width / 2}px ${rect.height / 2}px` }}
+            style={{ transformOrigin: `${cx}px ${cy}px` }}
           />
         )}
       </svg>

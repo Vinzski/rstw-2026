@@ -66,16 +66,17 @@ const START_ANGLE = -Math.PI / 2;
 // anywhere in it. Pieces fade into visibility one at a time (left to
 // right, R→S→T) while already riding that same rotation, so the ring is
 // always either not-yet-fully-visible or turning, never both stopped
-// *and* incomplete. Once the shared rotation reaches its target angle
-// (at least one full lap) it locks in place all at once — that's the
-// only stop in the whole sequence — and only then do pieces start
-// peeling off, one at a time, in slot order starting from the top and
-// going clockwise (the same direction the ring was just turning),
-// diving into the wordmark's slot and vanishing there. The dive-turn
-// gap between pieces is a fixed (not randomized) fraction of whatever's
-// left of BOOT_DURATION_MS after the rotation and the final dive, so the
-// very last piece always vanishes at the exact instant the loader's own
-// countdown reaches 0 — see DIVE_GAP below.
+// *and* incomplete. The rotation itself never locks or pauses for
+// anyone — each piece keeps circling right up until its own turn to
+// dive arrives, peeling off one at a time, in slot order starting from
+// the top and going clockwise (the same direction the ring is still
+// turning), diving from wherever the ring has carried it to by that
+// instant into the wordmark's slot and vanishing there — while every
+// other piece still on the ring just keeps turning, unaffected. The
+// dive-turn gap between pieces is a fixed (not randomized) fraction of
+// whatever's left of BOOT_DURATION_MS after the initial rotation and the
+// final dive, so the very last piece always vanishes at the exact
+// instant the loader's own countdown reaches 0 — see DIVE_GAP below.
 const RING_ENTRY_STAGGER = 0.05; // per-piece fade-in start offset — assembles left to right
 const RING_ENTRY_FADE_DURATION = 0.5; // how long a piece takes to fade/scale up once its own turn to appear comes
 const RING_ROTATION_DURATION = 3.5; // wall-clock length of the one continuous, uninterrupted rotation
@@ -157,19 +158,19 @@ function entryProgress(t, index) {
 // started (the same clock for every piece, which is what keeps the
 // rotation genuinely synchronized). Rotates continuously around the ring
 // from t=0 — fading into view partway through, on its own staggered
-// schedule, but never changing *how* it moves to do so — until the shared
-// rotation locks in place (a whole number of laps, so every piece lands
-// exactly back on its own slot at the same instant); only then does it
-// wait out its own turn and dive from its slot to `target`, shrinking
-// away — the same "entering the middle" flourish the old single
-// dive-through had.
+// schedule, but never changing *how* it moves to do so — right up until
+// this piece's own diveStart, wherever on the ring that leaves it; only
+// then does it dive from that live position to `target`, shrinking away
+// — the same "entering the middle" flourish the old single dive-through
+// had. The rotation itself never clamps or freezes while a piece waits
+// its turn — it just keeps advancing at the same rate the whole time.
 function ringPiecePoint(t, index, total, orbit, target, diveDelay) {
   const angleSlot = pieceSlotAngle(index, total);
   const diveStart = RING_ROTATION_DURATION + diveDelay;
+  const angleAt = (time) => angleSlot + (time / RING_ROTATION_DURATION) * RING_ROTATION_LAPS * Math.PI * 2;
 
   if (t <= diveStart) {
-    const spinT = Math.min(t, RING_ROTATION_DURATION);
-    const angle = angleSlot + (spinT / RING_ROTATION_DURATION) * RING_ROTATION_LAPS * Math.PI * 2;
+    const angle = angleAt(t);
     const p = ringPoint(angle, orbit);
     const fade = entryProgress(t, index);
     return {
@@ -180,10 +181,11 @@ function ringPiecePoint(t, index, total, orbit, target, diveDelay) {
       rotate: 0,
     };
   }
-  // Diving to center — always from its slot: the rotation completes a
-  // whole number of laps, so that's exactly where it comes to rest.
-  const slot = ringPoint(angleSlot, orbit);
-  const baseOpacity = ringOpacity(angleSlot);
+  // Diving to center — from wherever the still-turning ring has carried
+  // it to at the exact instant its own turn arrives, not a fixed slot.
+  const diveAngle = angleAt(diveStart);
+  const slot = ringPoint(diveAngle, orbit);
+  const baseOpacity = ringOpacity(diveAngle);
   // The dive-in fade stays right at the tail — a piece sits fully arrived
   // at the wordmark's slot before it vanishes, not still fading mid-flight.
   const u = Math.min((t - diveStart) / CENTER_DIVE_DURATION, 1);
@@ -193,7 +195,7 @@ function ringPiecePoint(t, index, total, orbit, target, diveDelay) {
   return {
     x: lerp(slot.x, target.x, eased),
     y: lerp(slot.y, target.y, eased),
-    scale: lerp(ringScale(angleSlot), 0.15, eased),
+    scale: lerp(ringScale(diveAngle), 0.15, eased),
     opacity,
     rotate: 420 * eased,
   };

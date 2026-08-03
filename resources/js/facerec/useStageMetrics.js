@@ -26,5 +26,10 @@ export function useStageMetrics() {
 
   const center = { x: w / 2, y: h / 2 };
 
-  return { slotWidth, slotHeight, slots, center, viewport };
+  // The circular viewfinder's own diameter — centered in its slot, sized
+  // well under the slot's shorter dimension so there's room left over
+  // below it for the name/title label.
+  const circleSize = Math.min(slotWidth, slotHeight) * 0.68;
+
+  return { slotWidth, slotHeight, slots, center, circleSize, viewport };
 }

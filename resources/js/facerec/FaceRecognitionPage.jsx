@@ -8,11 +8,19 @@ import RadialLoader from "./RadialLoader";
 import LogoFusion from "./LogoFusion";
 import { VIPS } from "./data";
 
-const HOLD_BEFORE_CLEAR_MS = 800; // once both verify, how long their own border-fill/flash gets before the panels start fading
-const CLEAR_FADE_S = 0.6; // the panels' own fade-out, once both are done
+const HOLD_BEFORE_REVEAL_MS = 800; // once both verify, how long their own border-fill/flash gets before settling into "reveal"
+const REVEAL_HOLD_MS = 3000; // how long the verified photo + logo sit together before the panels clear
+// The panels' own fade-out, once both are done — kept deliberately quick
+// rather than a slow dissolve: the logo already sits in place directly
+// behind each photo (see LogoFusion), so a long fade let the photo
+// gradually go translucent and show the logo through it, reading as the
+// photo being "moved behind" its logo instead of the photo just leaving.
+const CLEAR_FADE_S = 0.12;
+const LOGO_HOLD_MS = 1500; // once standing alone, how long the two logos wait before sliding together
 
-// booting | scanning | clearing | logos | leaving — see the phase-by-
-// phase rundown above each transition's own effect below.
+// booting | scanning | reveal | clearing | settled | merging | leaving —
+// see the phase-by-phase rundown above each transition's own effect
+// below.
 const INITIAL_PHASE = "booting";
 
 // Both VIPs scan side by side, full-screen, at the same time — there's
@@ -21,22 +29,44 @@ const INITIAL_PHASE = "booting";
 //
 // 1. "booting" — RadialLoader's boot ring; the camera(s) are already
 //    warming up underneath it.
-// 2. "scanning" — both panels active at once. Each VIP's own panel goes
-//    "done" (photo revealed, border filled) independently the moment
-//    *they* verify — the other panel keeps scanning regardless.
-// 3. "clearing" — once both have verified (and had a beat for their own
-//    border-fill/flash to finish), both cameras are released and the
-//    panels fade away together.
-// 4. "logos" — DOST's mark and the province seal arrive where each
-//    panel just was, hold, then slide together into one shared lockup
-//    (see LogoFusion).
-// 5. "leaving" — the existing white-out before handing off to the real
+// 2. "scanning" — both circular viewfinders active at once. Each VIP's
+//    own panel goes "done" (photo revealed, border filled) independently
+//    the moment *they* verify — the other panel keeps scanning
+//    regardless.
+// 3. "reveal" — once both have verified (and had a beat for their own
+//    border-fill/flash to finish), their photo holds on screen with each
+//    VIP's own institutional logo already sitting directly behind it,
+//    dead center of their half (see LogoFusion) — a beat to actually
+//    read who just checked in, not just a blip before the next thing.
+// 4. "clearing" — the photo/name panels disappear quickly (not a slow
+//    dissolve — see CLEAR_FADE_S), uncovering the logo that was behind
+//    each one the whole time; the logos themselves are untouched by this
+//    and simply remain in place.
+// 5. "settled" — the two logos just stand there on their own, uncovered,
+//    for a beat (LOGO_HOLD_MS) before doing anything else.
+// 6. "merging" — LogoFusion slides those same two logos together into
+//    one shared lockup, growing as they meet.
+// 7. "leaving" — the existing white-out before handing off to the real
 //    landing page (App), which already plays its own boot Loader on
-//    mount — no second ring here, or the two loading screens visibly
-//    stack back to back.
+//    mount — no second ring here, so the two loading screens never
+//    visibly stack back to back.
 export default function FaceRecognitionPage({ onFinished }) {
   const [phase, setPhase] = useState(INITIAL_PHASE);
   const [verified, setVerified] = useState(() => VIPS.map(() => false));
+
+  // Warm the browser's cache for every VIP's photo and logo the instant
+  // this page mounts — "reveal" is still a whole scan away, but the
+  // province seal alone is 700+KB, and without a head start like this
+  // its logo would still be fetching/decoding by the time "clearing"
+  // needed to show it already in place, landing visibly later than the
+  // photo it's paired with (which has been on screen, already loaded,
+  // since the moment that VIP verified).
+  useEffect(() => {
+    VIPS.forEach((vip) => {
+      new Image().src = vip.logo;
+      new Image().src = vip.image;
+    });
+  }, []);
 
   const camerasWanted = phase === "booting" || phase === "scanning";
   const cam0 = useCameraStream(camerasWanted);
@@ -59,25 +89,37 @@ export default function FaceRecognitionPage({ onFinished }) {
 
   useEffect(() => {
     if (phase !== "scanning" || !bothVerified) return;
-    const t = setTimeout(() => setPhase("clearing"), HOLD_BEFORE_CLEAR_MS);
+    const t = setTimeout(() => setPhase("reveal"), HOLD_BEFORE_REVEAL_MS);
     return () => clearTimeout(t);
   }, [phase, bothVerified]);
 
   useEffect(() => {
-    if (phase !== "clearing") return;
-    const t = setTimeout(() => setPhase("logos"), CLEAR_FADE_S * 1000);
+    if (phase !== "reveal") return;
+    const t = setTimeout(() => setPhase("clearing"), REVEAL_HOLD_MS);
     return () => clearTimeout(t);
   }, [phase]);
 
-  const handleLogosDone = useCallback(() => setPhase("leaving"), []);
+  useEffect(() => {
+    if (phase !== "clearing") return;
+    const t = setTimeout(() => setPhase("settled"), CLEAR_FADE_S * 1000);
+    return () => clearTimeout(t);
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "settled") return;
+    const t = setTimeout(() => setPhase("merging"), LOGO_HOLD_MS);
+    return () => clearTimeout(t);
+  }, [phase]);
+
+  const handleMergeDone = useCallback(() => setPhase("leaving"), []);
 
   function rectFor(i) {
-    const { slotWidth, slotHeight, slots } = metrics;
+    const { slots, circleSize } = metrics;
     return {
-      x: slots[i].x - slotWidth / 2,
-      y: slots[i].y - slotHeight / 2,
-      width: slotWidth,
-      height: slotHeight,
+      x: slots[i].x - circleSize / 2,
+      y: slots[i].y - circleSize / 2,
+      width: circleSize,
+      height: circleSize,
     };
   }
 
@@ -86,7 +128,14 @@ export default function FaceRecognitionPage({ onFinished }) {
     return verified[i] ? "done" : "active";
   }
 
-  const panelsVisible = phase === "booting" || phase === "scanning";
+  const panelsVisible = phase === "booting" || phase === "scanning" || phase === "reveal";
+  const logosVisible = phase === "reveal" || phase === "clearing" || phase === "settled" || phase === "merging";
+  // Clipped to a circle only while the (circular) photo is still there
+  // in front of it, covering or fading — matching that shape so nothing
+  // pokes out past its edges. Once "clearing" finishes and the photo's
+  // fully gone, there's nothing left to match, so the logo drops the
+  // clip and shows its own true shape from then on.
+  const logosCovered = phase === "reveal" || phase === "clearing";
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-paper-50">
@@ -121,7 +170,7 @@ export default function FaceRecognitionPage({ onFinished }) {
               <div
                 key={`label-${vip.id}`}
                 className="absolute -translate-x-1/2 text-center"
-                style={{ left: slot.x, top: slot.y - metrics.slotHeight / 2 + 28 }}
+                style={{ left: slot.x, top: slot.y + metrics.circleSize / 2 + 20 }}
               >
                 <p className="font-display text-base font-semibold text-ink drop-shadow sm:text-lg">{vip.name}</p>
                 <p
@@ -137,7 +186,11 @@ export default function FaceRecognitionPage({ onFinished }) {
       </motion.div>
 
       <AnimatePresence>{phase === "booting" && <RadialLoader onDone={handleBooted} />}</AnimatePresence>
-      <AnimatePresence>{phase === "logos" && <LogoFusion onDone={handleLogosDone} />}</AnimatePresence>
+      <AnimatePresence>
+        {logosVisible && (
+          <LogoFusion vips={VIPS} metrics={metrics} merging={phase === "merging"} covered={logosCovered} onDone={handleMergeDone} />
+        )}
+      </AnimatePresence>
 
       {phase === "leaving" && (
         <motion.div
