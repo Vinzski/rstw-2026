@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, useState } from "react";
-import { motion, useTransform, useMotionValue, animate } from "framer-motion";
+import { useLayoutEffect, useRef } from "react";
+import { motion, useTransform, useMotionValue } from "framer-motion";
 import DiveText from "./DiveText";
 import { mapRange, mapRangeSmooth } from "../lib/scroll";
 import { highlights, pillarBeatFadeFrac, beatDiveFrac } from "../data/content";
@@ -34,103 +34,50 @@ const HIGHLIGHT_THEME = [
   { text: "text-navy-700", gradient: "from-navy-700 to-navy-900", glow: "shadow-navy-900/20" },
 ];
 
-// Real event photos (RSTW 2025), replacing the abstract side motif on
-// every card — each beat gets its own scattered, not stacked, cluster:
-// every photo gets its own clear patch of ground with real gaps between
-// them, so all of them are visible (and independently hoverable) at once,
-// rather than overlapping and hiding most of each other behind whichever
-// one happens to be on top. Sized to actually fill the side the text isn't
-// on rather than sit as a small accent in the corner of it.
-const EVENT_PHOTOS_BASE = "/images/RSTW 2025";
-
-// S&T Fair & Exhibits — two landscape photos of last year's fair, the
-// same scattered, non-overlapping treatment as the other photo cards (a
-// smaller footprint since there are only two of them).
-const EXHIBIT_FAN = [
-  { file: "553579800_1210302201144784_7655861267300697454_n.jpg", rotate: -6, x: -198, y: -92 },
-  { file: "555441927_1210303541144650_5650172245905539790_n.jpg", rotate: 6, x: 198, y: 106 },
-];
-const EXHIBIT_CARD_CLASS = "h-36 w-64 xl:h-56 xl:w-80";
-const EXHIBIT_WRAP_CLASS = "h-[28rem] w-[40rem] xl:h-[34rem] xl:w-[48rem]";
-
-// Tech Demos & Talks — three landscape photos, the same card size and
-// scattered, non-overlapping treatment as the other three photo cards
-// (its own distinct arrangement so no two of the four decks read as the
-// same layout reused).
-const DEMO_FAN = [
-  { file: "553749858_1209289121246092_1791305236642796142_n.jpg", rotate: -9, x: -220, y: -130 },
-  { file: "555016653_1210302777811393_6203462054861568929_n.jpg", rotate: 8, x: 200, y: 20 },
-  { file: "555842040_1210302321144772_124366025892235478_n.jpg", rotate: -4, x: -140, y: 190 },
-];
-const DEMO_CARD_CLASS = "h-36 w-64 xl:h-56 xl:w-80";
-const DEMO_WRAP_CLASS = "h-[28rem] w-[40rem] xl:h-[34rem] xl:w-[48rem]";
-
-// Regional Forums — three landscape photos from a 2025 regional awarding
-// ceremony, the same card size and scattered, non-overlapping treatment
-// as the other three photo cards, its own distinct arrangement.
-const FORUM_FAN = [
-  { file: "optimized/Screenshot 2026-07-22 081125.jpg", rotate: -6, x: -230, y: -105 },
-  { file: "optimized/Screenshot 2026-07-22 081159.jpg", rotate: 5, x: 230, y: -70 },
-  { file: "optimized/Screenshot 2026-07-22 081209.jpg", rotate: -3, x: -25, y: 173 },
-];
-const FORUM_CARD_CLASS = "h-36 w-64 xl:h-56 xl:w-80";
-const FORUM_WRAP_CLASS = "h-[28rem] w-[40rem] xl:h-[34rem] xl:w-[48rem]";
-
-// Innovation Competitions — three landscape photos from last year's
-// competition floor, the same scattered treatment as Regional Forums with
-// its own distinct arrangement so the two landscape decks don't read as
-// the same layout reused.
-const COMPETITION_FAN = [
-  { file: "554658171_1210302714478066_6490822275766403100_n.jpg", rotate: -7, x: -219, y: 104 },
-  { file: "554769814_1210302937811377_1578769193021880555_n.jpg", rotate: 6, x: 219, y: 104 },
-  { file: "555690458_1210303154478022_3063947240922966792_n.jpg", rotate: -3, x: 0, y: -173 },
-];
-const COMPETITION_CARD_CLASS = "h-36 w-64 xl:h-56 xl:w-80";
-const COMPETITION_WRAP_CLASS = "h-[28rem] w-[40rem] xl:h-[34rem] xl:w-[48rem]";
-
 // One scattered photo: pops in with a fade + grow + a rotation that
 // overshoots its resting angle and settles back, plus the usual small
 // rise — the same "beat arriving" language as every other piece of
 // decor on the site, just applied per-photo instead of per-icon.
 //
-// Hovering a photo still lifts it slightly, straightens its tilt, and
-// enlarges it — a bit of polish/emphasis, not a fix for anything hidden,
-// now that the scatter layout means every photo already has a fully
-// visible, unobstructed area to hover. The hover amount is blended into
-// the SAME useTransform pipeline as the scroll-driven entrance (rather
-// than layering a second whileHover animation on top of it): a motion
-// value already bound to a style prop can't also be independently driven
-// by whileHover, so scale/rotate/y here are each a function of both the
-// entrance progress and the hover amount together.
-function FannedPhoto({ progress, enterStart, enterDur, rotate, x, y, file, cardClassName }) {
+// One schedule row: same fade + rise entrance the old event photos used,
+// minus the rotate/hover business a floating photo needs — these sit
+// flat in a stacked list instead. Text is sized generously (this whole
+// site is
+// meant to also run on a lobby TV, viewed from across a room, not just a
+// laptop) rather than tuned for a phone screen up close.
+function ScheduleRow({ progress, enterStart, enterDur, day, time, label, theme }) {
   const opacity = useTransform(progress, (p) => mapRange(p, enterStart, enterStart + enterDur, 0, 1));
-  const entranceScale = useTransform(progress, (p) => mapRangeSmooth(p, enterStart, enterStart + enterDur, 0.4, 1));
-  const entranceRotate = useTransform(progress, (p) => mapRangeSmooth(p, enterStart, enterStart + enterDur, rotate * 2.4, rotate));
-  const rise = useTransform(progress, (p) => mapRangeSmooth(p, enterStart, enterStart + enterDur, 50, 0));
-
-  const [hovered, setHovered] = useState(false);
-  const hoverT = useMotionValue(0);
-  const scale = useTransform([entranceScale, hoverT], ([s, h]) => s + h * 0.22);
-  const hoverRotate = useTransform([entranceRotate, hoverT], ([r, h]) => r * (1 - h));
-  const yFinal = useTransform([rise, hoverT], ([r, h]) => r + y - h * 16);
+  const rise = useTransform(progress, (p) => mapRangeSmooth(p, enterStart, enterStart + enterDur, 28, 0));
 
   return (
-    <motion.div
-      onHoverStart={() => {
-        setHovered(true);
-        animate(hoverT, 1, { type: "spring", stiffness: 300, damping: 24 });
-      }}
-      onHoverEnd={() => {
-        setHovered(false);
-        animate(hoverT, 0, { type: "spring", stiffness: 300, damping: 26 });
-      }}
-      style={{ opacity, scale, x, y: yFinal, rotate: hoverRotate, zIndex: hovered ? 10 : 1 }}
-      className={`pointer-events-auto absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer overflow-hidden rounded-2xl border-[3px] border-white shadow-2xl shadow-navy-900/25 ${
-        hovered ? "shadow-black/40" : ""
-      } ${cardClassName}`}
-    >
-      <img src={`${EVENT_PHOTOS_BASE}/${file}`} alt="" aria-hidden="true" className="h-full w-full object-cover" />
+    <motion.div style={{ opacity, y: rise }} className="border-b border-navy-900/10 py-4 last:border-b-0 xl:py-5">
+      <p className={`text-base font-semibold uppercase tracking-[0.2em] xl:text-lg ${theme.text}`}>
+        {day} &middot; {time}
+      </p>
+      <p className="mt-2 font-display text-2xl font-semibold leading-snug text-ink xl:text-3xl">{label}</p>
     </motion.div>
+  );
+}
+
+// Every card's real content — straight off the PDF's own Calendar of
+// Activities — shown as a schedule list instead of the event photos this
+// used to show.
+function ScheduleList({ progress, start, schedule, theme }) {
+  return (
+    <div className="w-[28rem] rounded-3xl border border-navy-900/10 bg-paper-50/90 px-8 py-1 shadow-2xl shadow-navy-900/10 backdrop-blur-sm xl:w-[34rem] xl:px-10">
+      {schedule.map((row, i) => (
+        <ScheduleRow
+          key={row.label}
+          progress={progress}
+          enterStart={start + i * 0.012}
+          enterDur={0.014}
+          day={row.day}
+          time={row.time}
+          label={row.label}
+          theme={theme}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -140,26 +87,7 @@ function FannedPhoto({ progress, enterStart, enterDur, rotate, x, y, file, cardC
 // at exactly `start` for the whole time the previous card's dive is still
 // opening, so the stack stays fully invisible until that hole has already
 // swallowed the screen, then pops open in a hair of scroll.
-function PhotoFan({ progress, start, fan, wrapClassName, cardClassName }) {
-  return (
-    <div className={`relative ${wrapClassName}`}>
-      {fan.map((f, i) => (
-        <FannedPhoto
-          key={f.file}
-          progress={progress}
-          enterStart={start + i * 0.012}
-          enterDur={0.014}
-          rotate={f.rotate}
-          x={f.x}
-          y={f.y}
-          file={f.file}
-          cardClassName={cardClassName}
-        />
-      ))}
-    </div>
-  );
-}
-
+//
 // Same two-dive framing as the pillar beats: a card is revealed through
 // the previous card's glyph (clipped to that dive's growing hole, content
 // settling in from under it), holds, then exits by diving through a glyph
@@ -201,14 +129,6 @@ function HighlightCard({ item, progress, index, theme, dive, prevDive, glyphRef,
   const settleScale = useTransform(homing, (k) => 1 - k * 0.15);
 
   const g = DIVE_GLYPHS[index];
-  const photoFan =
-    index === 0
-      ? { fan: EXHIBIT_FAN, wrapClassName: EXHIBIT_WRAP_CLASS, cardClassName: EXHIBIT_CARD_CLASS }
-      : index === 1
-        ? { fan: FORUM_FAN, wrapClassName: FORUM_WRAP_CLASS, cardClassName: FORUM_CARD_CLASS }
-        : index === 2
-          ? { fan: COMPETITION_FAN, wrapClassName: COMPETITION_WRAP_CLASS, cardClassName: COMPETITION_CARD_CLASS }
-          : { fan: DEMO_FAN, wrapClassName: DEMO_WRAP_CLASS, cardClassName: DEMO_CARD_CLASS };
 
   return (
     <motion.div
@@ -233,7 +153,7 @@ function HighlightCard({ item, progress, index, theme, dive, prevDive, glyphRef,
             onRight ? "left-10 xl:left-14" : "right-10 xl:right-14"
           }`}
         >
-          <PhotoFan progress={progress} start={start} {...photoFan} />
+          <ScheduleList progress={progress} start={start} schedule={item.schedule} theme={theme} />
         </div>
 
         <div
