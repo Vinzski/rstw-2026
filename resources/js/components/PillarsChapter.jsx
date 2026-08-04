@@ -18,10 +18,10 @@ const FADE = SEGMENT * pillarBeatFadeFrac;
 // beat's dive doubles as the chapter exit into Highlights (published via
 // the diveHandoffs registry).
 const DIVE_GLYPHS = [
-  { word: "to", char: 1 }, //      the "o" of "…a place to grow?"
-  { word: "science", char: 1 }, // the "c" of "science"
-  { word: "do", char: 1 }, //      the "o" of "What do we owe…"
-  { word: "become", char: 0 }, //  the "b" of "become"
+  { word: "got", char: 1 }, //  the "o" of "…just got a whole new name?"
+  { word: "own", char: 0 }, //  the "o" of "…as its own regional celebration?"
+  { word: "food", char: 1 }, // the "o" of "…put food on the table?"
+  { word: "does", char: 1 }, // the "o" of "What does a more resilient…"
 ];
 
 // Each pillar gets its own brand color instead of every beat reusing the
