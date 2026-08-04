@@ -101,29 +101,29 @@ export const pillars = [
     icon: Sparkles,
     code: "01",
     title: "Innovation",
-    question: "What if every idea had a place to grow?",
-    copy: "Homegrown inventions and research from across the peninsula.",
+    question: "Did you know RSTW just got a whole new name?",
+    copy: "It's now the Regional Science, Technology, and Innovation Week — with LIC-HA and the R&D Symposium putting homegrown inventions on stage.",
   },
   {
     icon: Users,
     code: "02",
     title: "Community Empowerment",
-    question: "What happens when science reaches every barangay?",
-    copy: "S&T services brought directly to LGUs, schools, and co-ops.",
+    question: "Why does RSTW exist as its own regional celebration?",
+    copy: "So DOST's own technologies reach every province directly — like the DOST x LGU Forum, brought straight to local governments.",
   },
   {
     icon: Leaf,
     code: "03",
-    title: "Sustainability",
-    question: "What do we owe the reefs, the rivers, the next generation?",
-    copy: "Food security and climate-resilient practices, region-wide.",
+    title: "Food Security",
+    question: "How does science and technology actually put food on the table?",
+    copy: "Through blue economy seminars and real farm tech, like AGROTIS, DOST's own agricultural robot.",
   },
   {
     icon: Cpu,
     code: "04",
     title: "Digital Transformation",
-    question: "What could the peninsula become, fully connected?",
-    copy: "Digital literacy and smart infrastructure for every LGU.",
+    question: "What does a more resilient region actually look like?",
+    copy: "A new satellite calibration lab and cybersecurity training for SETUP-assisted MSMEs — this region's own piece of it.",
   },
 ];
 
@@ -131,26 +131,42 @@ export const highlights = [
   {
     icon: FlaskConical,
     title: "S&T Fair & Exhibits",
-    copy: "Research, prototypes, and DOST-assisted enterprises on the floor.",
+    copy: "The DOST Bazaar, Science Centrum, and exhibit floor — research and DOST-assisted enterprises on display.",
     tag: "Exhibit",
+    // Straight from the PDF's own Calendar of Activities — shown as a
+    // schedule list beside this card instead of event photos.
+    schedule: [
+      { day: "Aug 12", time: "11:55 AM", label: "Opening of the Exhibits" },
+      { day: "Aug 12", time: "4:00 – 5:40 PM", label: "Satellite Lab & Science Centrum Inaugurations" },
+      { day: "Aug 12–14", time: "8:00 AM – 5:00 PM", label: "Exhibits, Science Centrum, Trivia & DOST Bazaar" },
+    ],
   },
   {
     icon: Presentation,
     title: "Regional Forums",
-    copy: "Experts on innovation policy and disaster resilience.",
+    copy: "Blue economy, smart agriculture, and local development, each with its own dedicated forum.",
     tag: "Forum",
+    schedule: [
+      { day: "Aug 12", time: "1:00 – 5:00 PM", label: "DOST x LGU Forum on STI for Local Development" },
+      { day: "Aug 13", time: "8:00 AM – 12:00 NN", label: "Seminar on Blue Economy" },
+      { day: "Aug 13", time: "8:00 AM – 5:00 PM", label: "Smart Agriculture Forum" },
+    ],
   },
   {
     icon: Trophy,
-    title: "Innovation Competitions",
-    copy: "Youth inventors pitch for recognition and seed support.",
-    tag: "Competition",
+    title: "Local Inventors' Convention",
+    copy: "LIC-HA — inventors from across the peninsula take the stage to showcase what they've built.",
+    tag: "Convention",
+    schedule: [
+      { day: "Aug 13", time: "1:00 – 5:00 PM", label: "LIC-HA: Local Inventor's Convention-Horizons and Advancement" },
+    ],
   },
   {
     icon: Rocket,
     title: "Tech Demos & Talks",
-    copy: "Live demos from DOST agencies and regional partners.",
+    copy: "The Technology Forum brings DOST agencies and regional partners to one main stage.",
     tag: "Demo",
+    schedule: [{ day: "Aug 13", time: "1:00 – 5:00 PM", label: "Technology Forum" }],
   },
 ];
 
