@@ -14,23 +14,32 @@ const MERGE_SCALE_RATIO = 0.42;
 // two marks meeting rather than overlapping into a smear.
 const SEPARATION_FACTOR = 1.15;
 
-// Mounted the instant both VIPs verify (see FaceRecognitionPage's
-// "reveal" phase) — each VIP's own institutional logo sits dead center
-// of their half, sized to match their circular photo exactly and
-// directly behind it (a lower z-index than VipBox's own circle, which is
-// why it stays hidden under it at first). It's already there, in place,
-// before "clearing" fades that photo away and reveals it. While `covered`
-// (still behind/under the fading photo — "reveal" and "clearing"), it's
-// clipped to that same circle so a squared-off mark like DOST's doesn't
-// poke its corners out past the photo's round edge; once the photo's
-// fully gone, `covered` drops and the logo shows its own true shape
-// again, uncropped. Only once the parent flips `merging` true (the
-// "merging" phase, once the panels have fully cleared) do the two marks
-// shrink and slide together, with a bloom marking the moment they meet —
-// reading as "the two check-ins combining into one result," not a
-// generic transition — before the white hand-off to the real landing
-// page (App), which plays its own boot Loader on mount.
-export default function LogoFusion({ vips, metrics, merging, covered, onDone }) {
+// Mounted from the "scanning" phase onward (see FaceRecognitionPage) so
+// each VIP's own institutional logo is already sitting dead center of
+// their half — sized to match their circular photo exactly and directly
+// behind it (a lower z-index than VipBox's own circle) — the instant
+// `verified` flips true for them, in the same render as VipBox starts
+// that photo's own wipe-reveal. Mounting it any later left a window where
+// the photo was still mid-wipe with nothing behind it yet, so the logo
+// would visibly pop in partway through instead of the two reading as one
+// reveal. While `covered` (still behind/under the photo — "scanning"
+// through "reveal"), it's clipped to that same circle so a squared-off
+// mark like DOST's doesn't poke its corners out past the photo's round
+// edge. `covered` drops the instant the photo starts fading ("clearing"),
+// and the clip animates open over `uncoverS` (matching the photo's own
+// fade duration) rather than snapping open — DOST's corners are square
+// right up to the frame's edge, so an instant, untransitioned clip
+// removal used to pop them into view in a single frame, reading as a
+// stray cut across the mark. Animating the two together means the mark
+// has already grown its full shape by the moment the photo has finished
+// fading, instead of popping afterward. Only once the parent flips
+// `merging` true (the "merging" phase, once the panels have fully
+// cleared) do the two marks shrink and slide together, with a bloom
+// marking the moment they meet — reading as "the two check-ins combining
+// into one result," not a generic transition — before the white hand-off
+// to the real landing page (App), which plays its own boot Loader on
+// mount.
+export default function LogoFusion({ vips, metrics, verified, merging, covered, uncoverS, onDone }) {
   const [flashed, setFlashed] = useState(false);
   const { slots, center, circleSize } = metrics;
 
@@ -52,26 +61,38 @@ export default function LogoFusion({ vips, metrics, merging, covered, onDone }) 
   return (
     <motion.div className="pointer-events-none fixed inset-0 z-[5]" exit={{ opacity: 0 }} transition={{ duration: 0.5, ease: "easeInOut" }}>
       {/* `object-contain` always — the whole mark scales to fit inside
-          its own box and never overflows it, so a squared-off shape like
-          DOST's four petals sits fully inside the frame instead of
-          getting cropped at the edges the way `object-cover` would (the
-          province seal happens to already be a tight circular crop, so
-          it looks the same either way). The rounded-full clip on top of
-          that only matters while `covered` — with `object-contain`
-          already keeping everything inside the box, it's mostly a no-op,
-          but still marks "this is paired with the photo in front of it"
-          before the logo goes back to standing on its own once
-          uncovered. */}
+          its own box and never overflows it, so nothing ever exceeds the
+          box regardless of the clip below (the province seal happens to
+          already be a tight circular crop, so `object-contain` alone
+          keeps it looking round). DOST's mark fills its box corner to
+          corner, though, so it still needs the `borderRadius` clip below
+          while `covered` to keep its own corners from poking out past
+          the round photo in front of it. That clip is an animated value,
+          not a conditional class, so releasing it (once the photo starts
+          fading) is a smooth grow-into-place rather than an instant pop. */}
       {vips.map((vip, i) => {
+        if (!verified[i]) return null;
         const slot = slots[i];
         const x = merging ? (i === 0 ? travel : -travel) : 0;
         return (
           <motion.div
             key={vip.id}
-            className={`absolute -translate-x-1/2 -translate-y-1/2 drop-shadow-xl ${covered ? "overflow-hidden rounded-full" : ""}`}
+            className="absolute -translate-x-1/2 -translate-y-1/2 overflow-hidden drop-shadow-xl"
             style={{ left: slot.x, top: slot.y, width: circleSize, height: circleSize }}
-            animate={{ scale: merging ? MERGE_SCALE_RATIO : 1, x }}
-            transition={{ duration: MERGE_S, ease: "easeInOut" }}
+            // This VIP is only ever first mounted while `covered` is
+            // already true (verifying always happens during "scanning"
+            // or "reveal" — never later), so pinning `initial` to that
+            // same resting state means the very first render is static,
+            // not an entrance animation. Only a real change afterward —
+            // `covered` flipping false as the photo starts fading, or
+            // `merging` kicking in — actually animates.
+            initial={{ scale: 1, x: 0, borderRadius: "50%" }}
+            animate={{ scale: merging ? MERGE_SCALE_RATIO : 1, x, borderRadius: covered ? "50%" : "0%" }}
+            transition={{
+              scale: { duration: MERGE_S, ease: "easeInOut" },
+              x: { duration: MERGE_S, ease: "easeInOut" },
+              borderRadius: { duration: uncoverS, ease: "easeInOut" },
+            }}
           >
             <img src={vip.logo} alt="" aria-hidden="true" className="h-full w-full object-contain" />
           </motion.div>

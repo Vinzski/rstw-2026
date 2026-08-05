@@ -160,19 +160,27 @@ export default function IntroChapter({ progress, bgY, fgY }) {
           <motion.div initial={restInitial} animate={{ opacity: showRest ? 1 : 0 }} transition={restTransition}>
             <motion.p
               style={{ opacity: supportOpacity }}
-              className="mt-6 max-w-2xl text-balance text-base text-slate-600 sm:text-lg md:text-xl"
+              className="mt-6 max-w-2xl text-balance text-base font-semibold text-slate-700 sm:text-lg md:text-xl"
             >
-              {intro.tagline}
+              <span className="text-sky-600">Siyensya</span>,{" "}
+              <span className="text-red-600">Teknolohiya</span>, at{" "}
+              <span className="text-gold-600">Inobasyon</span>
+            </motion.p>
+            <motion.p
+              style={{ opacity: supportOpacity }}
+              className="mt-2 max-w-2xl text-balance text-sm text-slate-600 sm:text-base md:text-lg"
+            >
+              {intro.subtagline}
             </motion.p>
           </motion.div>
           <motion.div initial={restInitial} animate={{ opacity: showRest ? 1 : 0 }} transition={restTransition}>
             <motion.div
               style={{ opacity: supportOpacity }}
-              className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-slate-600"
+              className="mt-6 flex flex-col items-center gap-2 text-sm text-slate-600"
             >
-              <span className="inline-flex items-center gap-1.5">
-                <MapPin className="h-4 w-4 text-orange-600" />
-                {intro.venue}
+              <span className="inline-flex max-w-sm items-start gap-1.5 text-center sm:max-w-md">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" />
+                <span>{intro.venue}</span>
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <Calendar className="h-4 w-4 text-orange-600" />

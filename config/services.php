@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'google' => [
+        // Gemini API key (AI Studio) — used offline by the
+        // narration:generate command to voice the tour narrator via
+        // Gemini TTS. Never sent to the browser: the frontend only ever
+        // plays the static WAV files that command writes to
+        // public/audio/narration.
+        'api_key' => env('GOOGLE_API'),
+    ],
+
 ];

@@ -7,15 +7,18 @@ import RadialLoader from "./RadialLoader";
 import LogoFusion from "./LogoFusion";
 import { configBroadcast } from "../echo";
 import { VIPS, BACKUP_VIPS } from "./data";
+import { playSound } from "../lib/audio";
 
 const HOLD_BEFORE_REVEAL_MS = 800; // once both verify, how long their own border-fill/flash gets before settling into "reveal"
 const REVEAL_HOLD_MS = 3000; // how long the verified photo + logo sit together before the panels clear
-// The panels' own fade-out, once both are done — kept deliberately quick
-// rather than a slow dissolve: the logo already sits in place directly
-// behind each photo (see LogoFusion), so a long fade let the photo
-// gradually go translucent and show the logo through it, reading as the
-// photo being "moved behind" its logo instead of the photo just leaving.
-const CLEAR_FADE_S = 0.12;
+// The panels' own fade out, once both are done — opacity only, no scale:
+// the logo already sits in place directly behind each photo at the exact
+// same size (see LogoFusion), so a plain fade dissolves straight into it.
+// Scaling the photo layer without scaling the (separate) logo layer to
+// match made the photo shrink faster than the logo could "catch up",
+// reading as the photo popping behind an oversized logo instead of
+// smoothly dissolving into it.
+const CLEAR_FADE_S = 0.6;
 const LOGO_HOLD_MS = 1500; // once standing alone, how long the two logos wait before sliding together
 const SUCCESS_SOUND_SRC = "/audio/success.mp3";
 const HUD_SOUND_SRC = "/audio/HUD Activation Sound Effect.mp3";
@@ -83,8 +86,7 @@ export default function FaceRecognitionPage({ onFinished }) {
   const handleBooted = useCallback(() => {
     setPhase("waiting");
     setInitializing(true);
-    const sound = new Audio(HUD_SOUND_SRC);
-    sound.play().catch(() => {});
+    playSound(HUD_SOUND_SRC);
   }, []);
 
   useEffect(() => {
@@ -120,8 +122,7 @@ export default function FaceRecognitionPage({ onFinished }) {
   useEffect(() => {
     verifiedData.forEach((data, i) => {
       if (data && !prevVerifiedRef.current[i]) {
-        const sound = new Audio(SUCCESS_SOUND_SRC);
-        sound.play().catch(() => {});
+        playSound(SUCCESS_SOUND_SRC);
       }
     });
     prevVerifiedRef.current = verifiedData;
@@ -190,13 +191,22 @@ export default function FaceRecognitionPage({ onFinished }) {
   }
 
   const panelsVisible = phase === "booting" || phase === "waiting" || phase === "reveal";
-  const logosVisible = phase === "reveal" || phase === "clearing" || phase === "settled" || phase === "merging";
-  // Clipped to a circle only while the (circular) photo is still there
-  // in front of it, covering or fading — matching that shape so nothing
-  // pokes out past its edges. Once "clearing" finishes and the photo's
-  // fully gone, there's nothing left to match, so the logo drops the
-  // clip and shows its own true shape from then on.
-  const logosCovered = phase === "reveal" || phase === "clearing";
+  // Mounted from "waiting" onward (not held back for the "reveal" phase)
+  // so each VIP's own logo is already in the DOM, directly behind their
+  // panel, the instant their photo starts its wipe-reveal — see the
+  // `verified` prop passed to LogoFusion below, which gates each logo
+  // individually so it never lags behind its own photo the way waiting
+  // for the shared "reveal" phase used to.
+  const logosVisible = phase === "waiting" || phase === "reveal" || phase === "clearing" || phase === "settled" || phase === "merging";
+  // Clipped to a circle only while the (circular) photo is still opaque
+  // and sitting in front of it — matching that shape so nothing pokes
+  // out past its edges. Dropped the instant "clearing" starts (the photo
+  // begins fading), not once it finishes: LogoFusion animates the clip's
+  // release over `CLEAR_FADE_S` (passed down as `uncoverS`), the same
+  // duration as the photo's own fade, so the two finish together instead
+  // of the logo's true (square, for a mark like DOST's) shape popping in
+  // afterward.
+  const logosCovered = phase === "waiting" || phase === "reveal";
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-paper-50">
@@ -252,7 +262,15 @@ export default function FaceRecognitionPage({ onFinished }) {
       <AnimatePresence>{phase === "booting" && <RadialLoader onDone={handleBooted} />}</AnimatePresence>
       <AnimatePresence>
         {logosVisible && (
-          <LogoFusion vips={VIPS} metrics={metrics} merging={phase === "merging"} covered={logosCovered} onDone={handleMergeDone} />
+          <LogoFusion
+            vips={VIPS}
+            metrics={metrics}
+            verified={verifiedData.map(Boolean)}
+            merging={phase === "merging"}
+            covered={logosCovered}
+            uncoverS={CLEAR_FADE_S}
+            onDone={handleMergeDone}
+          />
         )}
       </AnimatePresence>
 

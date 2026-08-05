@@ -27,9 +27,17 @@ const MOUNT_MARGIN = EDGE_FADE + 0.052;
 
 const ALL_MOUNTED = new Set(cinematicRanges.map((_, i) => i));
 
-function computeMountSet(p) {
+// `excludeIntro` keeps Intro (index 0) out of the mount set entirely,
+// regardless of margin — used by the pre-reveal preview tour, which
+// lands straight on About and must never mount Intro (and with it,
+// RstwAssembly's boot ring, portaled straight to the body) before the
+// real boot sequence is ready to show it. See the `full` handling below
+// for how About's own boundary still resolves correctly with Intro
+// unmounted.
+function computeMountSet(p, excludeIntro) {
   const set = new Set();
   cinematicRanges.forEach((range, i) => {
+    if (excludeIntro && i === 0) return;
     if (p >= range.start - MOUNT_MARGIN && p <= range.end + MOUNT_MARGIN) set.add(i);
   });
   return set;
@@ -146,7 +154,7 @@ function useSegmentEnvelope(masterProgress, range, isFirst, isLast) {
 // sequence, so the forward tour keeps paying the normal lazy-mount cost
 // rather than running all four chapters' animation work simultaneously
 // for the better part of a minute.
-export default function CinematicLayers({ progress, onActiveChange, isAutoPlaying, forceMountAll }) {
+export default function CinematicLayers({ progress, onActiveChange, isAutoPlaying, forceMountAll, excludeIntro = false }) {
   useMotionValueEvent(progress, "change", (p) => {
     let current = cinematicRanges[0];
     for (const range of cinematicRanges) {
@@ -158,15 +166,28 @@ export default function CinematicLayers({ progress, onActiveChange, isAutoPlayin
   const lenisRef = useLenisRef();
   useScrollSnap(progress, snapZones, lenisRef, isAutoPlaying);
 
-  const [mounted, setMounted] = useState(() => (forceMountAll ? ALL_MOUNTED : computeMountSet(progress.get())));
+  // With Intro deliberately unmounted, its own dive would never publish a
+  // handoff — About's entry clip (see useSegmentEnvelope's `full` branch)
+  // would read a permanently-zero hole and clip itself away to nothing.
+  // Forcing it open here is what lets About render normally, unclipped,
+  // as if Intro's dive had already finished. Cleared back to 0 the
+  // instant Intro is allowed to mount again so its own dive publishes
+  // real values from a real 0 instead of leaving this stale.
+  useEffect(() => {
+    diveHandoffs.intro.full.set(excludeIntro ? 1 : 0);
+  }, [excludeIntro]);
+
+  const [mounted, setMounted] = useState(() =>
+    forceMountAll ? ALL_MOUNTED : computeMountSet(progress.get(), excludeIntro),
+  );
   useMotionValueEvent(progress, "change", (p) => {
-    const next = forceMountAll ? ALL_MOUNTED : computeMountSet(p);
+    const next = forceMountAll ? ALL_MOUNTED : computeMountSet(p, excludeIntro);
     setMounted((prev) => (sameMountSet(prev, next) ? prev : next));
   });
   useEffect(() => {
-    const next = forceMountAll ? ALL_MOUNTED : computeMountSet(progress.get());
+    const next = forceMountAll ? ALL_MOUNTED : computeMountSet(progress.get(), excludeIntro);
     setMounted((prev) => (sameMountSet(prev, next) ? prev : next));
-  }, [forceMountAll, progress]);
+  }, [forceMountAll, progress, excludeIntro]);
 
   const env0 = useSegmentEnvelope(progress, cinematicRanges[0], true, false);
   const env1 = useSegmentEnvelope(progress, cinematicRanges[1], false, false);
