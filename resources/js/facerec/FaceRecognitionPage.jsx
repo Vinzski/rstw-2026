@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import BrandBorder from "../components/decor/BrandBorder";
-import { useCameraStream } from "./useCameraStream";
 import { useStageMetrics } from "./useStageMetrics";
 import VipBox from "./VipBox";
 import RadialLoader from "./RadialLoader";
 import LogoFusion from "./LogoFusion";
-import { VIPS } from "./data";
+import { configBroadcast } from "../echo";
+import { VIPS, BACKUP_VIPS } from "./data";
 
 const HOLD_BEFORE_REVEAL_MS = 800; // once both verify, how long their own border-fill/flash gets before settling into "reveal"
 const REVEAL_HOLD_MS = 3000; // how long the verified photo + logo sit together before the panels clear
@@ -18,22 +18,26 @@ const REVEAL_HOLD_MS = 3000; // how long the verified photo + logo sit together 
 const CLEAR_FADE_S = 0.12;
 const LOGO_HOLD_MS = 1500; // once standing alone, how long the two logos wait before sliding together
 const SUCCESS_SOUND_SRC = "/audio/success.mp3";
+const HUD_SOUND_SRC = "/audio/HUD Activation Sound Effect.mp3";
+const INITIALIZING_MS = 5150; // matches HUD_SOUND_SRC's own length exactly
 
-// booting | scanning | reveal | clearing | settled | merging | leaving —
+// booting | waiting | reveal | clearing | settled | merging | leaving —
 // see the phase-by-phase rundown above each transition's own effect
 // below.
 const INITIAL_PHASE = "booting";
 
-// Both VIPs scan side by side, full-screen, at the same time — there's
-// no queue, no handoff, no "next panel" the way earlier versions of this
-// page worked. The whole run is one straight line:
+// Face recognition itself happens on a separate device/app entirely —
+// this page never touches a camera. It just sits and waits on the "vip"
+// broadcast channel (see echo.js/configBroadcast) for a "VipEvent" per
+// person, matches it to one of the two slots below by `designation`, and
+// reacts. The whole run is one straight line:
 //
-// 1. "booting" — RadialLoader's boot ring; the camera(s) are already
-//    warming up underneath it.
-// 2. "scanning" — both circular viewfinders active at once. Each VIP's
-//    own panel goes "done" (photo revealed, border filled) independently
-//    the moment *they* verify — the other panel keeps scanning
-//    regardless.
+// 1. "booting" — RadialLoader's boot ring.
+// 2. "waiting" — both panels sit locked (gray, lock icon — see VipBox's
+//    "idle" stage) until their own broadcast arrives. The Secretary is
+//    expected first, then the Governor, but nothing here enforces that
+//    order — each slot just lights up independently the moment *its own*
+//    VipEvent lands, same as the other panel.
 // 3. "reveal" — once both have verified (and had a beat for their own
 //    border-fill/flash to finish), their photo holds on screen with each
 //    VIP's own institutional logo already sitting directly behind it,
@@ -53,54 +57,99 @@ const INITIAL_PHASE = "booting";
 //    visibly stack back to back.
 export default function FaceRecognitionPage({ onFinished }) {
   const [phase, setPhase] = useState(INITIAL_PHASE);
-  const [verified, setVerified] = useState(() => VIPS.map(() => false));
+  // null until that slot's own VipEvent arrives, then
+  // { name, image, affiliation, designation }.
+  const [verifiedData, setVerifiedData] = useState(() => VIPS.map(() => null));
 
-  // Warm the browser's cache for every VIP's photo and logo the instant
-  // this page mounts — "reveal" is still a whole scan away, but the
-  // province seal alone is 700+KB, and without a head start like this
-  // its logo would still be fetching/decoding by the time "clearing"
-  // needed to show it already in place, landing visibly later than the
-  // photo it's paired with (which has been on screen, already loaded,
-  // since the moment that VIP verified).
+  // Warm the browser's cache for every VIP's logo the instant this page
+  // mounts — their actual photo only exists once they verify (it comes
+  // in on the broadcast itself, not known ahead of time), but the logo is
+  // fixed per slot and can start loading right away.
   useEffect(() => {
-    VIPS.forEach((vip) => {
-      new Image().src = vip.logo;
-      new Image().src = vip.image;
+    VIPS.forEach((slot) => {
+      new Image().src = slot.logo;
     });
   }, []);
-
-  const camerasWanted = phase === "booting" || phase === "scanning";
-  const cam0 = useCameraStream(camerasWanted);
-  const cam1 = useCameraStream(camerasWanted);
-  const cams = [cam0, cam1];
 
   const metrics = useStageMetrics();
-  const bothVerified = verified.every(Boolean);
+  const bothVerified = verifiedData.every(Boolean);
 
-  const handleBooted = useCallback(() => setPhase("scanning"), []);
+  // Marks the system actually coming online — both panels get a visible
+  // "activating" beat (see VipBox) timed to run exactly as long as the
+  // HUD sound below, rather than per-scan (there's no more per-scan
+  // trigger to hang either on).
+  const [initializing, setInitializing] = useState(false);
 
-  // Both panels run off the same fixed scan timer, so they typically
-  // verify within the same tick of each other — playing this per-panel
-  // would fire it twice, nearly simultaneously. One shared "verified"
-  // cue for the pair instead, gated to whichever panel gets there first.
-  const successSoundPlayedRef = useRef(false);
-
-  const handleVerified = useCallback((i) => {
-    setVerified((prev) => {
-      if (prev[i]) return prev;
-      const next = [...prev];
-      next[i] = true;
-      return next;
-    });
-    if (!successSoundPlayedRef.current) {
-      successSoundPlayedRef.current = true;
-      const sound = new Audio(SUCCESS_SOUND_SRC);
-      sound.play().catch(() => {});
-    }
+  const handleBooted = useCallback(() => {
+    setPhase("waiting");
+    setInitializing(true);
+    const sound = new Audio(HUD_SOUND_SRC);
+    sound.play().catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (phase !== "scanning" || !bothVerified) return;
+    if (!initializing) return;
+    const t = setTimeout(() => setInitializing(false), INITIALIZING_MS);
+    return () => clearTimeout(t);
+  }, [initializing]);
+
+  // Shared by both the real broadcast and the Space-bar fallback below —
+  // same matching/reveal path either way, so a backup check-in looks and
+  // behaves identically to a real one once it lands.
+  const applyVipData = useCallback((data) => {
+    if (!data?.designation) return;
+    const i = VIPS.findIndex((slot) => slot.designation.toLowerCase() === data.designation.toLowerCase());
+    if (i === -1) return;
+
+    setVerifiedData((prev) => {
+      if (prev[i]) return prev;
+      const next = [...prev];
+      next[i] = data;
+      return next;
+    });
+  }, []);
+
+  // Each VIP gets their own success cue, independent of the other — two
+  // real people checking in at two different real moments, not a
+  // synchronized pair like the old local-scan flow was. Watches
+  // `verifiedData` itself (rather than playing inline inside
+  // `applyVipData`) so it fires exactly once per slot that actually
+  // transitions from unverified to verified, regardless of whether that
+  // came from the real broadcast or the Space-bar fallback.
+  const prevVerifiedRef = useRef(verifiedData);
+  useEffect(() => {
+    verifiedData.forEach((data, i) => {
+      if (data && !prevVerifiedRef.current[i]) {
+        const sound = new Audio(SUCCESS_SOUND_SRC);
+        sound.play().catch(() => {});
+      }
+    });
+    prevVerifiedRef.current = verifiedData;
+  }, [verifiedData]);
+
+  useEffect(() => {
+    configBroadcast("VipEvent", "vip", (e) => applyVipData(e?.vip));
+  }, [applyVipData]);
+
+  // Manual fallback for a live event: if the real scanner has a technical
+  // issue and never broadcasts, an operator watching this screen can
+  // press Space to fill both slots from BACKUP_VIPS instead of it sitting
+  // stuck on "Awaiting check-in." Only live while genuinely waiting on
+  // verification — not during "booting" (nothing to skip yet) and not
+  // once already underway (an accidental press shouldn't re-trigger
+  // anything past that point).
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.code !== "Space" || phase !== "waiting" || bothVerified) return;
+      e.preventDefault();
+      BACKUP_VIPS.forEach(applyVipData);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [phase, bothVerified, applyVipData]);
+
+  useEffect(() => {
+    if (phase !== "waiting" || !bothVerified) return;
     const t = setTimeout(() => setPhase("reveal"), HOLD_BEFORE_REVEAL_MS);
     return () => clearTimeout(t);
   }, [phase, bothVerified]);
@@ -137,10 +186,10 @@ export default function FaceRecognitionPage({ onFinished }) {
 
   function stageFor(i) {
     if (phase === "booting") return "idle";
-    return verified[i] ? "done" : "active";
+    return verifiedData[i] ? "done" : "idle";
   }
 
-  const panelsVisible = phase === "booting" || phase === "scanning" || phase === "reveal";
+  const panelsVisible = phase === "booting" || phase === "waiting" || phase === "reveal";
   const logosVisible = phase === "reveal" || phase === "clearing" || phase === "settled" || phase === "merging";
   // Clipped to a circle only while the (circular) photo is still there
   // in front of it, covering or fading — matching that shape so nothing
@@ -162,34 +211,37 @@ export default function FaceRecognitionPage({ onFinished }) {
         transition={{ duration: CLEAR_FADE_S, ease: "easeInOut" }}
       >
         <div className="absolute inset-0 z-10">
-          {VIPS.map((vip, i) => (
-            <VipBox
-              key={vip.id}
-              vip={vip}
-              stage={stageFor(i)}
-              rect={rectFor(i)}
-              stream={cams[i].stream}
-              cameraError={cams[i].error}
-              onRetryCamera={cams[i].retry}
-              onVerified={() => handleVerified(i)}
-            />
-          ))}
+          {VIPS.map((slot, i) => {
+            const data = verifiedData[i];
+            return (
+              <VipBox
+                key={slot.id}
+                vip={{ ...slot, ...data }}
+                stage={stageFor(i)}
+                rect={rectFor(i)}
+                initializing={initializing}
+              />
+            );
+          })}
 
-          {VIPS.map((vip, i) => {
-            const slot = metrics.slots[i];
-            const color = phase === "booting" ? "var(--color-slate-500)" : vip.color;
+          {VIPS.map((slot, i) => {
+            const data = verifiedData[i];
+            const slotPos = metrics.slots[i];
+            const color = phase === "booting" ? "var(--color-slate-500)" : slot.color;
             return (
               <div
-                key={`label-${vip.id}`}
+                key={`label-${slot.id}`}
                 className="absolute -translate-x-1/2 text-center"
-                style={{ left: slot.x, top: slot.y + metrics.circleSize / 2 + 20 }}
+                style={{ left: slotPos.x, top: slotPos.y + metrics.circleSize / 2 + 20 }}
               >
-                <p className="font-display text-base font-semibold text-ink drop-shadow sm:text-lg">{vip.name}</p>
+                <p className="font-display text-base font-semibold text-ink drop-shadow sm:text-lg">
+                  {data ? data.name : slot.designation}
+                </p>
                 <p
                   className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] transition-colors duration-500 sm:text-xs"
                   style={{ color }}
                 >
-                  {vip.title}
+                  {data ? data.designation : "Awaiting check-in"}
                 </p>
               </div>
             );

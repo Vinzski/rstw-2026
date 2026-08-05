@@ -16,7 +16,6 @@ import { AppReadyProvider } from "./lib/appReadyContext";
 import { HeroChromeRevealProvider } from "./lib/heroChromeContext";
 import useAutoPlay from "./hooks/useAutoPlay";
 import { chapters } from "./data/content";
-import { configBroadcast } from "./echo";
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -110,13 +109,6 @@ export default function App() {
     }
     window.addEventListener("dragstart", preventDrag);
     return () => window.removeEventListener("dragstart", preventDrag);
-  }, []);
-
-  useEffect(() => {
-    console.log("Setting up Reverb broadcast listener for VipEvent on channel 'vip'");
-    configBroadcast("VipEvent", "vip", (e) => {
-      console.log("VipEvent", e);
-    });
   }, []);
 
   return (
