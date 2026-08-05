@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cinematicRanges, beatDiveFrac, pillarBeatFadeFrac } from "../data/content";
+import { cinematicRanges, beatDiveFrac, pillarBeatFadeFrac, tourNarration } from "../data/content";
 import { progressToScrollY } from "../lib/navigate";
+import { speakNarration, cancelSpeech } from "../lib/speech";
 
 // Slower than a nav-click's default (1.4s): each chapter drives its own
 // zoom/dive/wipe transitions off scroll position, invisible on a fast
@@ -24,9 +25,33 @@ const SAME_CHAPTER_SCROLL_S = 3.6;
 const DWELL_MS = 1000;
 const CONTROLS_HIDE_MS = 2200;
 
-// Which of the two hop speeds applies between two chapter ids — used to
-// pick each forward hop's duration.
+// Highlights' own four beats (S&T Fair & Exhibits, Regional Forums,
+// Local Inventors' Convention, Tech Demos & Talks) move noticeably
+// quicker card-to-card than Pillars' — the narrator's own line is
+// short (a title, not a question-and-answer beat), so the same
+// unhurried pacing the longer Pillars beats need just reads as a dead
+// stretch here. Narration speed itself is untouched — only how long
+// the gap around it runs.
+const HIGHLIGHTS_SAME_CHAPTER_SCROLL_S = 1.8;
+const HIGHLIGHTS_NARRATION_PAUSE_MS = 250;
+
+// Once the narrator (see lib/speech.js) actually finishes a stop's own
+// line, how much longer to hold before advancing — separate from
+// DWELL_MS, which now only applies to the one stop with nothing to say
+// (Intro's own, see NARRATION below).
+const NARRATION_PAUSE_MS = 800;
+
+// One line per non-Intro stop, same order as STOPS below — Intro's own
+// stop (index 0) has nothing here, so it keeps the plain DWELL_MS pause
+// instead of narration.
+const NARRATION = [null, ...tourNarration];
+
+// Which hop speed applies between two chapter ids — used to pick each
+// forward hop's duration. Highlights-to-Highlights gets its own
+// (faster) figure; every other same-chapter hop (i.e. Pillars) keeps
+// the general one.
 function hopDuration(fromChapterId, toChapterId) {
+  if (fromChapterId === "highlights" && toChapterId === "highlights") return HIGHLIGHTS_SAME_CHAPTER_SCROLL_S;
   return fromChapterId != null && fromChapterId === toChapterId ? SAME_CHAPTER_SCROLL_S : CROSS_CHAPTER_SCROLL_S;
 }
 
@@ -141,6 +166,21 @@ export default function useAutoPlay(lenisRef) {
   const stepTimerRef = useRef(null);
   const hideTimerRef = useRef(null);
   const indexRef = useRef(0);
+  // Which stop a given run started from, whether that first stop should
+  // be an instant jump instead of a glide, and what to do at the finale
+  // instead of the default rewind-to-hero — all per-run config `start`
+  // stashes here so `advance` (a stable callback) can read the current
+  // run's own settings without needing them threaded through as args on
+  // every recursive call.
+  const startIndexRef = useRef(0);
+  const instantFirstRef = useRef(false);
+  const finaleHandlerRef = useRef(null);
+  // Bumped by every stop()/start() so any in-flight async continuation
+  // from a previous run — most importantly a pending `speak().then(...)`,
+  // which a plain clearTimeout can't reach — recognizes it's stale and
+  // no-ops instead of advancing (or firing the finale) after the tour
+  // has already been called off.
+  const genRef = useRef(0);
 
   const clearStepTimer = () => {
     if (stepTimerRef.current) {
@@ -154,7 +194,9 @@ export default function useAutoPlay(lenisRef) {
   }, []);
 
   const stop = useCallback(() => {
+    genRef.current += 1;
     clearStepTimer();
+    cancelSpeech();
     setIsPlaying(false);
     setIsRewinding(false);
     setControlsVisible(true);
@@ -186,31 +228,78 @@ export default function useAutoPlay(lenisRef) {
   }, [lenisRef, releaseOverride]);
 
   const advance = useCallback(() => {
+    const gen = genRef.current;
     const stopInfo = STOPS[indexRef.current];
     if (!stopInfo) return;
     setCurrentChapterId(stopInfo.chapterId);
     setStepIndex(indexRef.current);
 
+    // A run that starts mid-sequence (the pre-reveal preview tour lands
+    // straight on About, skipping Intro's own stop) has nothing to glide
+    // FROM for its own first stop — Intro isn't even on screen — so that
+    // one lands instantly instead of gliding in from wherever the page
+    // happens to be scrolled.
+    const isFirstOfRun = indexRef.current === startIndexRef.current;
+    const instant = isFirstOfRun && instantFirstRef.current;
     const prevChapterId = STOPS[indexRef.current - 1]?.chapterId;
-    const hopScrollS = hopDuration(prevChapterId, stopInfo.chapterId);
+    const hopScrollS = instant ? 0 : hopDuration(prevChapterId, stopInfo.chapterId);
 
     const targetY = stopScrollY(stopInfo);
-    if (targetY != null && lenisRef?.current) lenisRef.current.scrollTo(targetY, { duration: hopScrollS });
-    else if (targetY != null) window.scrollTo({ top: targetY, behavior: "smooth" });
+    if (targetY != null && lenisRef?.current) {
+      lenisRef.current.scrollTo(targetY, instant ? { immediate: true, force: true } : { duration: hopScrollS });
+    } else if (targetY != null) {
+      window.scrollTo({ top: targetY, behavior: instant ? "auto" : "smooth" });
+    }
 
     const atEnd = indexRef.current >= STOPS.length - 1;
-    stepTimerRef.current = setTimeout(() => {
+    const narrationLine = NARRATION[indexRef.current] ?? null;
+
+    function proceed() {
+      if (gen !== genRef.current) return;
       if (atEnd) {
-        rewind();
+        if (finaleHandlerRef.current) finaleHandlerRef.current();
+        else rewind();
         return;
       }
       indexRef.current += 1;
       advance();
-    }, hopScrollS * 1000 + DWELL_MS);
+    }
+
+    // Lands first (the hop's own glide), then either reads this stop's
+    // line and waits for it to actually finish before a hold — Highlights'
+    // own stops use the shorter HIGHLIGHTS_NARRATION_PAUSE_MS (see above),
+    // everything else the general NARRATION_PAUSE_MS — or, for Intro's
+    // stop, which has no line, just the plain DWELL_MS hold as before.
+    const pauseMs = stopInfo.chapterId === "highlights" ? HIGHLIGHTS_NARRATION_PAUSE_MS : NARRATION_PAUSE_MS;
+    stepTimerRef.current = setTimeout(() => {
+      if (gen !== genRef.current) return;
+      if (narrationLine) {
+        // NARRATION is offset by one slot for Intro's own (line-less)
+        // stop — see NARRATION above — so the clip index tourNarration
+        // (and the narration:generate command) actually use is one
+        // less than this STOPS index.
+        speakNarration(indexRef.current - 1, narrationLine).then(() => {
+          if (gen !== genRef.current) return;
+          stepTimerRef.current = setTimeout(proceed, pauseMs);
+        });
+      } else {
+        stepTimerRef.current = setTimeout(proceed, DWELL_MS);
+      }
+    }, hopScrollS * 1000);
   }, [lenisRef, rewind]);
 
-  const start = useCallback(() => {
-    indexRef.current = 0;
+  // `opts.fromIndex` lets a run start anywhere in STOPS (the pre-reveal
+  // preview starts at the first About stop, skipping Intro's); `onFinale`
+  // lets it replace the default rewind-to-hero with something else (the
+  // preview hands off to the boot sequence instead) — the manual Play
+  // button calls this with no args and gets the original behavior.
+  const start = useCallback((opts = {}) => {
+    const { fromIndex = 0, instantFirst = false, onFinale = null } = opts;
+    genRef.current += 1;
+    startIndexRef.current = fromIndex;
+    instantFirstRef.current = instantFirst;
+    finaleHandlerRef.current = onFinale;
+    indexRef.current = fromIndex;
     setIsPlaying(true);
     setControlsVisible(true);
     setOverrideActive(true);
@@ -263,7 +352,14 @@ export default function useAutoPlay(lenisRef) {
     };
   }, [overrideActive, isPlaying, stop, releaseOverride]);
 
-  useEffect(() => clearStepTimer, []);
+  useEffect(
+    () => () => {
+      genRef.current += 1;
+      clearStepTimer();
+      cancelSpeech();
+    },
+    [],
+  );
 
   return {
     isPlaying,
@@ -273,5 +369,6 @@ export default function useAutoPlay(lenisRef) {
     stepInfo: overrideActive ? { index: stepIndex + 1, total: STOPS.length } : null,
     start,
     stop,
+    releaseOverride,
   };
 }

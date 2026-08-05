@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, animate, AnimatePresence } from "framer-motion";
 import { Check } from "lucide-react";
+import { playSound } from "../lib/audio";
 
 // Total time for the confidence readout to climb 0 → 100%, at which
 // point the scan auto-resolves as verified. Standing in for a real
@@ -46,11 +47,7 @@ export default function ScanOverlay({ onDone, color }) {
   // Plays once for this VIP's scan, starting the instant their overlay
   // mounts. Left to ring out on its own past verification — only cut
   // short if this VIP's turn ends before the clip finishes.
-  useEffect(() => {
-    const sound = new Audio(SCAN_SOUND_SRC);
-    sound.play().catch(() => {});
-    return () => sound.pause();
-  }, []);
+  useEffect(() => playSound(SCAN_SOUND_SRC), []);
 
   useEffect(() => {
     if (!verified) return;

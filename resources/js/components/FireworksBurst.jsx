@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { playSound } from "../lib/audio";
 
 // Same brand palette as the hero's own ambient sparks (see
 // RstwAssembly's FIREWORK_COLORS) so this reads as the same system, just
@@ -116,11 +117,7 @@ export default function FireworksBurst({ onDone }) {
     [],
   );
 
-  useEffect(() => {
-    const sound = new Audio(SOUND_SRC);
-    sound.play().catch(() => {});
-    return () => sound.pause();
-  }, []);
+  useEffect(() => playSound(SOUND_SRC), []);
 
   useEffect(() => {
     const t = setTimeout(() => setActive(false), SHOW_DURATION_MS);

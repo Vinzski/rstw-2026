@@ -69,8 +69,10 @@ export const intro = {
   kicker: "Regional Science, Technology & Innovation Week",
   title: "RSTW",
   year: "2026",
-  tagline: "Science, Technology, and Innovation",
-  venue: "Dipolog City · Zamboanga del Norte",
+  // Rendered as three separately colored words in IntroChapter (sky/red/gold) —
+  // kept out of this data file since the per-word coloring lives in the JSX.
+  subtagline: "Kabalikat sa Matatag, Maginhawa, at Panatag na Kinabukasan",
+  venue: "Zamboanga del Norte Convention and Sports Center, Dipolog City, Zamboanga del Norte",
   date: "August 12–14, 2026",
 };
 
@@ -158,7 +160,7 @@ export const highlights = [
     copy: "LIC-HA — inventors from across the peninsula take the stage to showcase what they've built.",
     tag: "Convention",
     schedule: [
-      { day: "Aug 13", time: "1:00 – 5:00 PM", label: "LIC-HA: Local Inventor's Convention-Horizons and Advancement" },
+      { day: "Aug 13", time: "1:00 – 5:00 PM", label: "LIC-HA: Local Inventors' Convention-Horizons and Advancement" },
     ],
   },
   {
@@ -169,4 +171,34 @@ export const highlights = [
     schedule: [{ day: "Aug 13", time: "1:00 – 5:00 PM", label: "Technology Forum" }],
   },
 ];
+
+// Read aloud by the tour's own narrator (see lib/speech.js) as it lands
+// on each stop — one entry per non-Intro stop in useAutoPlay's STOPS,
+// in that same order (About's two beats, then each Pillar, then each
+// Highlight). Intro has no entry: the tour's very first stop just gets
+// the plain dwell-then-advance pacing narration everywhere else now
+// drives. Written as its own short script rather than reused from the
+// fields above — a few phrases are trimmed or reworded here for how
+// they read out loud rather than how they read on screen: "&" spelled
+// out as "and" (not every voice pronounces the symbol), and "DOST"
+// spelled out letter by letter as "D-O-S-T" rather than read as one
+// word.
+export const tourNarration = [
+  "Science, Technology and Innovation",
+  "One D-O-S-T 4U - Solutions and Opportunities for All",
+  "Did you know RSTW just got a whole new name? It's now the Regional Science, Technology, and Innovation Week — with LIC-HA and the R and D Symposium putting homegrown inventions on stage.",
+  "Why does RSTW exist as its own regional celebration? So D-O-S-T's own technologies reach every province directly — like the D-O-S-T x LGU Forum, brought straight to local governments.",
+  "How does science and technology actually put food on the table? Through blue economy seminars and real farm tech, like AGROTIS, D-O-S-T's own agricultural robot.",
+  "What does a more resilient region actually look like? A new satellite calibration lab and cybersecurity training for SETUP-assisted MSMEs — this region's own piece of it.",
+  "S and T Fair and Exhibits",
+  "Regional Forums",
+  "Local Inventors' Convention",
+  "Tech Demos and Talks",
+];
+
+// The narrator's one-off welcome line — not part of the tour above, so
+// it isn't keyed by a STOPS index. Played exactly once, the moment the
+// hero's own boot sequence finishes revealing (see App's
+// revealHeroChrome), not on every later scroll back up to it.
+export const welcomeNarration = "WELCOME TO RSTW 2026!";
 

@@ -383,6 +383,10 @@ export default function RstwAssembly({ title, className = "", onRevealed }) {
       setOrbit({ cx: window.innerWidth / 2, cy: window.innerHeight / 2, rx: window.innerWidth * 0.4, ry: window.innerHeight * 0.34 });
     }
     measure();
+    // Space Grotesk swapping in reflows the copy below (and can shift the
+    // whole centered column), same as glyphDive.js — re-measure once it
+    // settles so the pieces don't dive toward a stale pre-reflow slot.
+    document.fonts?.ready?.then(measure);
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   }, []);
@@ -449,6 +453,31 @@ export default function RstwAssembly({ title, className = "", onRevealed }) {
             transition={reduceMotion ? { duration: 0 } : { ...LETTER_SPRING, delay: i * LETTER_STAGGER }}
           />
         ))}
+
+        {/* ZAMPEN sash — a ribbon draped across the R's own corner, in
+            the same percentage coordinate space as the letters above so
+            it scales and repositions with them at every breakpoint.
+            Lands just after the R itself has, reading as stamped on top
+            of an already-formed letter rather than arriving with it. */}
+        <motion.div
+          aria-hidden="true"
+          className="absolute flex items-center justify-center"
+          style={{
+            left: "-5%",
+            top: "4%",
+            width: "19%",
+            height: "13%",
+          }}
+          initial={reduceMotion ? false : { opacity: 0, scale: 0.7  , rotate: -38 }}
+          animate={{ opacity: revealed ? 1 : 0, scale: revealed ? 1 : 0.7, rotate: -38 }}
+          transition={reduceMotion ? { duration: 0 } : { ...LETTER_SPRING, delay: LETTER_STAGGER + 0.15 }}
+        >
+          <div className="flex h-full w-full items-center justify-center rounded-full bg-sky-600 shadow-lg shadow-sky-900/30">
+            <span className="font-display text-[0.5rem] font-bold tracking-[0.08em] text-white sm:text-[0.7rem] md:text-[0.85rem] xl:text-[1.05rem]">
+              ZAMPEN
+            </span>
+          </div>
+        </motion.div>
       </div>
 
       {!reduceMotion &&
