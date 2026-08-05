@@ -36,7 +36,7 @@ const PING_COUNT = 3;
 const PING_LAP_S = 1.3; // one ring's full expand-and-fade
 const PING_STAGGER_S = PING_LAP_S / PING_COUNT; // evenly spaced so there's always one mid-expansion
 
-export default function VipBox({ vip, stage, rect, initializing = false }) {
+export default function VipBox({ vip, stage, rect, initializing = false, flip = false }) {
   // The border only fills in once this VIP has actually verified.
   // `pathLength` only ever animates 0 → 1 once (this stays true from
   // here on), so it never replays on later re-renders.
@@ -124,8 +124,8 @@ export default function VipBox({ vip, stage, rect, initializing = false }) {
               src={vip.avatar}
               alt={vip.name}
               onError={() => setAvatarFailed(true)}
-              initial={{ clipPath: "inset(0 0 100% 0)", scale: 1.08 }}
-              animate={{ clipPath: "inset(0 0 0% 0)", scale: 1 }}
+              initial={{ clipPath: "inset(0 0 100% 0)", scaleX: flip ? -1.08 : 1.08, scaleY: 1.08 }}
+              animate={{ clipPath: "inset(0 0 0% 0)", scaleX: flip ? -1 : 1, scaleY: 1 }}
               transition={{ duration: 2.2, ease: [0.16, 1, 0.3, 1] }}
               className="h-full w-full object-cover"
             />

@@ -221,6 +221,28 @@ export default function FaceRecognitionPage({ onFinished }) {
         transition={{ duration: CLEAR_FADE_S, ease: "easeInOut" }}
       >
         <div className="absolute inset-0 z-10">
+          {/* Each VIP's own half of the screen — gray by default,
+              switching to that VIP's own assigned color (both kept
+              subtle, not a solid fill) the instant *they* verify.
+              Rendered first so it sits behind the circle/label, not as
+              part of the circle itself. */}
+          {VIPS.map((slot, i) => (
+            <div
+              key={`half-bg-${slot.id}`}
+              className="absolute inset-y-0 transition-colors duration-700 ease-out"
+              style={{
+                left: i * metrics.slotWidth,
+                width: metrics.slotWidth,
+                backgroundColor: stageFor(i) === "done" ? `${slot.color}4D` : "rgba(12,26,51,0.1)",
+              }}
+            />
+          ))}
+
+          {/* The literal split between the two halves — a thin vertical
+              line down the center, so the two background tints read as
+              two distinct sides rather than one wash bleeding together. */}
+          <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-navy-900/10" />
+
           {VIPS.map((slot, i) => {
             const data = verifiedData[i];
             return (
@@ -230,6 +252,7 @@ export default function FaceRecognitionPage({ onFinished }) {
                 stage={stageFor(i)}
                 rect={rectFor(i)}
                 initializing={initializing}
+                flip
               />
             );
           })}

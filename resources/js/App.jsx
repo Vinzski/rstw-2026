@@ -18,8 +18,9 @@ import useAutoPlay from "./hooks/useAutoPlay";
 import { chapters, cinematicRanges } from "./data/content";
 import { diveHandoffs } from "./lib/glyphDive";
 import { getTrackGeometry, progressToScrollY } from "./lib/navigate";
-import { playLoop } from "./lib/audio";
+import { playLoop, getMuted, subscribeMuted } from "./lib/audio";
 import { useSpeaking } from "./lib/speech";
+import { BOOT_DURATION_MS } from "./lib/bootTiming";
 
 // The stop the pre-reveal preview tour starts from (see STOPS in
 // useAutoPlay): index 0 is Intro's own stop, which the preview skips —
@@ -50,6 +51,17 @@ const PREVIEW_MUSIC_FADE_OUT_MS = 600;
 // pixel of a chapter that, by design, settles and holds rather than
 // diving into anything further.
 const FINALE_PROGRESS = 0.985;
+
+// The site's own background score — three tracks in a fixed sequence,
+// not three loop options: 1 plays once, then 2 plays once, then 3 loops
+// for the rest of the visit. Starts when the countdown's own on-screen
+// number reaches 2 (i.e. 2 seconds *remaining*, not 2 seconds elapsed —
+// Loader's ring counts down from 10, not up) and, unlike PREVIEW_MUSIC
+// above, is never stopped by a later phase change — once it starts it's
+// meant to carry through celebrating and the interactive site alike.
+const THEME_TRACKS = ["/audio/rstw-theme/1.MP3", "/audio/rstw-theme/2.MP3", "/audio/rstw-theme/3.MP3"];
+const THEME_VOLUME = 0.35;
+const THEME_START_DELAY_MS = BOOT_DURATION_MS - 4000;
 
 export default function App() {
   // The visit's own boot arc, as one phase instead of two loosely-linked
@@ -213,6 +225,46 @@ export default function App() {
       PREVIEW_MUSIC_DUCK_FADE_MS,
     );
   }, [isNarrating]);
+
+  // The site's own theme, starting THEME_START_DELAY_MS into the
+  // countdown page specifically (`phase === "booting"`) — not App mount,
+  // not "right after the scan hands off." Guarded by a ref rather than
+  // relying on `phase` alone, since (unlike the preview's bed music)
+  // this needs to keep playing straight through "celebrating" and
+  // "site" once it starts, not stop the instant booting ends. Only the
+  // *start* is phase-gated; nothing here ever tears the audio down on a
+  // later phase change, only on the rare case the delay is still
+  // pending when the component unmounts.
+  const themeStartedRef = useRef(false);
+  const themeAudioRef = useRef(null);
+  useEffect(() => {
+    if (phase !== "booting" || themeStartedRef.current) return undefined;
+    themeStartedRef.current = true;
+
+    const startTimer = setTimeout(() => {
+      let unsubscribe;
+      function playTrack(i) {
+        const track = new Audio(THEME_TRACKS[i]);
+        track.volume = THEME_VOLUME;
+        track.muted = getMuted();
+        themeAudioRef.current = track;
+        unsubscribe?.();
+        unsubscribe = subscribeMuted(() => {
+          track.muted = getMuted();
+        });
+        const isLast = i === THEME_TRACKS.length - 1;
+        if (isLast) {
+          track.loop = true;
+        } else {
+          track.addEventListener("ended", () => playTrack(i + 1));
+        }
+        track.play().catch(() => {});
+      }
+      playTrack(0);
+    }, THEME_START_DELAY_MS);
+
+    return () => clearTimeout(startTimer);
+  }, [phase]);
 
   // While the auto-tour is driving (and for a beat after it stops), trust
   // its own step index over cinematicActive — belt-and-suspenders should
