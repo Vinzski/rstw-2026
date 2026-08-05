@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MapPin, Calendar, ChevronDown } from "lucide-react";
 import { motion, useReducedMotion, useTransform } from "framer-motion";
 import { mapRange, mapRangeSmooth } from "../lib/scroll";
-import { intro } from "../data/content";
+import { intro, welcomeNarration } from "../data/content";
+import { speakWelcome } from "../lib/speech";
 import { el, logos } from "../lib/elements";
 import { LetterWatermark } from "./decor/Decor";
 import { useGlyphDive, useDivePublisher } from "../lib/glyphDive";
@@ -28,6 +29,13 @@ const ZOOM_END = 0.95;
 // width as the hole's basis — fine here since the "0" is nearly as tall as
 // wide, so a circular approximation reads correctly.
 const ZERO_MARKER = { left: 24.11, width: 26.65 };
+
+// Persists for the life of the page (a module singleton, not component
+// state) so the welcome line plays once per visit — this chapter is
+// mounted and unmounted like any other as the track scrolls, and
+// component state wouldn't survive that. Same reason RstwAssembly keeps
+// its own `hasPlayedTrainIntro` out here.
+let hasPlayedWelcome = false;
 
 // Receives its 0→1 progress from CinematicLayers, which owns this
 // chapter's slice of the single master scroll track — there is no
@@ -80,6 +88,16 @@ export default function IntroChapter({ progress, bgY, fgY }) {
   const handleRstwRevealed = useCallback(
     (wasAnimated) => {
       setHeroRevealed(true);
+      // The welcome line lands with the wordmark itself, not with the
+      // supporting text a beat later — `showTheRest` (and the chrome
+      // reveal it drives) is deliberately staggered 1.5s behind this,
+      // and hanging the voice off that made it audibly late to its own
+      // reveal. Fired straight from here instead, so RSTW appearing and
+      // "WELCOME TO RSTW 2026!" are the same moment.
+      if (!hasPlayedWelcome) {
+        hasPlayedWelcome = true;
+        speakWelcome(welcomeNarration);
+      }
       if (!wasAnimated) showTheRest();
     },
     [showTheRest],
