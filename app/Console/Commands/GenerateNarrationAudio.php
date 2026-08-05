@@ -11,12 +11,12 @@ use Illuminate\Support\Facades\Http;
 // not per-visitor input, so there's no reason to pay for (or wait on) a
 // live API call on every page load. Run once after the script changes:
 //
-//   php artisan narration:generate [--force] [--only=0,3,welcome]
+//   php artisan narration:generate [--force] [--only=0,3,finale]
 class GenerateNarrationAudio extends Command
 {
     protected $signature = 'narration:generate
         {--force : Regenerate clips that already exist}
-        {--only= : Comma-separated 0-based indices and/or extra-clip names to (re)generate, e.g. --only=0,3,welcome}';
+        {--only= : Comma-separated 0-based indices and/or extra-clip names to (re)generate, e.g. --only=0,3,finale}';
 
     protected $description = "Generate the tour narrator's WAV clips via Gemini TTS";
 
@@ -24,15 +24,18 @@ class GenerateNarrationAudio extends Command
     // order — kept duplicated rather than shared: this command runs
     // offline, before Vite ever builds, so it can't depend on anything
     // in that bundle. Update both together if the script changes.
-    // "DOST" is deliberately spelled "D-O-S-T" throughout — read as one
-    // word, TTS engines pronounce it like "dohst"; hyphenating it spells
-    // it out letter by letter instead.
+    // "DOST" is deliberately spelled "D.O.S.T" throughout — read as one
+    // word, it comes out sounding like "dohst". A hyphenated "D-O-S-T"
+    // was tried first; a generated clip confirmed by ear that it still
+    // read as the word, not the letters, so this switched to the more
+    // standard period-delimited "spell this out" convention, backed up
+    // by an explicit instruction in STYLE_PREFIX below.
     private const LINES = [
         'Science, Technology and Innovation',
-        'One D-O-S-T 4U - Solutions and Opportunities for All',
+        'One D.O.S.T 4U - Solutions and Opportunities for All',
         "Did you know RSTW just got a whole new name? It's now the Regional Science, Technology, and Innovation Week — with LIC-HA and the R and D Symposium putting homegrown inventions on stage.",
-        "Why does RSTW exist as its own regional celebration? So D-O-S-T's own technologies reach every province directly — like the D-O-S-T x LGU Forum, brought straight to local governments.",
-        "How does science and technology actually put food on the table? Through blue economy seminars and real farm tech, like AGROTIS, D-O-S-T's own agricultural robot.",
+        "Why does RSTW exist as its own regional celebration? So D.O.S.T's own technologies reach every province directly — like the D.O.S.T x LGU Forum, brought straight to local governments.",
+        "How does science and technology actually put food on the table? Through blue economy seminars and real farm tech, like AGROTIS, D.O.S.T's own agricultural robot.",
         'What does a more resilient region actually look like? A new satellite calibration lab and cybersecurity training for SETUP-assisted MSMEs — this region\'s own piece of it.',
         'S and T Fair and Exhibits',
         'Regional Forums',
@@ -41,13 +44,14 @@ class GenerateNarrationAudio extends Command
     ];
 
     // One-off clips outside the numbered tour — keyed by the slug
-    // useAutoPlay/speech.js reference by name (public/audio/narration/
+    // App/speech.js reference by name (public/audio/narration/
     // <slug>.wav), each with its own style instruction rather than the
-    // tour's standard one. Mirrors welcomeNarration in content.js.
+    // tour's standard STYLE_PREFIX. Mirrors finaleTeaseNarration in
+    // content.js.
     private const EXTRAS = [
-        'welcome' => [
-            'text' => 'WELCOME TO RSTW 2026!',
-            'style' => 'Say with huge excitement and warmth, like joyfully welcoming a big crowd to a grand celebration: ',
+        'finale' => [
+            'text' => "Alright, Zamboanga Peninsula... are you ready? Because what happens next... you're not going to want to miss.",
+            'style' => 'Say with building suspense and thrilling energy, like a movie trailer narrator teasing something huge about to happen — dramatic and enthusiastic, not just cheerful: ',
         ],
     ];
 
@@ -65,8 +69,11 @@ class GenerateNarrationAudio extends Command
     // Layered on top of the base voice per line rather than baked into
     // the voice choice itself — Gemini TTS reads a natural-language
     // style instruction ahead of the actual line (see the docs' own
-    // "Say cheerfully: ..." example) and delivers accordingly.
-    private const STYLE_PREFIX = 'Say in the voice of an energetic, enthusiastic co-host hyping up the crowd: ';
+    // "Say cheerfully: ..." example) and delivers accordingly. The
+    // D.O.S.T clause is a second, explicit safeguard on top of that
+    // period-delimited spelling in LINES itself — belt and suspenders,
+    // since punctuation alone wasn't enough to stop it reading as a word.
+    private const STYLE_PREFIX = 'Say in the voice of an energetic, enthusiastic co-host hyping up the crowd. Whenever you see "D.O.S.T", pronounce each letter individually — D, O, S, T — never as the word "dost": ';
 
     private const SAMPLE_RATE = 24000;
 
@@ -139,8 +146,8 @@ class GenerateNarrationAudio extends Command
 
     // One clip end to end: skip-if-exists, request (with retry/pacing),
     // extract the audio, wrap it as a WAV, save it. Shared by both the
-    // numbered tour LINES and the named EXTRAS below — same pipeline,
-    // just a different slug/label/style per caller. Returns whether it
+    // numbered tour LINES and the named EXTRAS above — same pipeline,
+    // just a different slug/text/style per caller. Returns whether it
     // ended up saved (including "already existed, skipped").
     private function generateClip(string $apiKey, string $outDir, string $slug, string $text, string $stylePrefix, bool $force): bool
     {

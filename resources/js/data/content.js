@@ -181,14 +181,18 @@ export const highlights = [
 // fields above — a few phrases are trimmed or reworded here for how
 // they read out loud rather than how they read on screen: "&" spelled
 // out as "and" (not every voice pronounces the symbol), and "DOST"
-// spelled out letter by letter as "D-O-S-T" rather than read as one
-// word.
+// spelled out letter by letter as "D.O.S.T" rather than read as one
+// word — a hyphenated "D-O-S-T" was tried first and confirmed (by
+// actually listening to the generated clip) to still read as the word
+// "DOST"; the period-delimited form is the more standard "spell this
+// out" convention and is what the narration:generate command's own
+// style instruction now also explicitly asks for as a second measure.
 export const tourNarration = [
   "Science, Technology and Innovation",
-  "One D-O-S-T 4U - Solutions and Opportunities for All",
+  "One D.O.S.T 4U - Solutions and Opportunities for All",
   "Did you know RSTW just got a whole new name? It's now the Regional Science, Technology, and Innovation Week — with LIC-HA and the R and D Symposium putting homegrown inventions on stage.",
-  "Why does RSTW exist as its own regional celebration? So D-O-S-T's own technologies reach every province directly — like the D-O-S-T x LGU Forum, brought straight to local governments.",
-  "How does science and technology actually put food on the table? Through blue economy seminars and real farm tech, like AGROTIS, D-O-S-T's own agricultural robot.",
+  "Why does RSTW exist as its own regional celebration? So D.O.S.T's own technologies reach every province directly — like the D.O.S.T x LGU Forum, brought straight to local governments.",
+  "How does science and technology actually put food on the table? Through blue economy seminars and real farm tech, like AGROTIS, D.O.S.T's own agricultural robot.",
   "What does a more resilient region actually look like? A new satellite calibration lab and cybersecurity training for SETUP-assisted MSMEs — this region's own piece of it.",
   "S and T Fair and Exhibits",
   "Regional Forums",
@@ -196,9 +200,18 @@ export const tourNarration = [
   "Tech Demos and Talks",
 ];
 
-// The narrator's one-off welcome line — not part of the tour above, so
-// it isn't keyed by a STOPS index. Played exactly once, the moment the
-// hero's own boot sequence finishes revealing (see App's
-// revealHeroChrome), not on every later scroll back up to it.
+// The narrator's bridge line — not part of the tour above, so it isn't
+// keyed by a STOPS index. Plays once the tour's last stop (Tech Demos &
+// Talks) finishes narrating, while the background music hushes to
+// silence under it, filling what used to be a dead beat between the
+// tour ending and the countdown starting (see App's handlePreviewFinale).
+// Deliberately doesn't name RSTW — it's a tease for the reveal that
+// follows, not a repeat of it.
+export const finaleTeaseNarration =
+  "Alright, Zamboanga Peninsula... are you ready? Because what happens next... you're not going to want to miss.";
+
+// The payoff to that tease — played once, the moment the hero has fully
+// landed after the countdown (see App's revealHeroChrome), not on every
+// later scroll back up to it.
 export const welcomeNarration = "WELCOME TO RSTW 2026!";
 
