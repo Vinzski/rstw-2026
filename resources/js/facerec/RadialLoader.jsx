@@ -106,7 +106,7 @@ export default function RadialLoader({ onDone }) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5, ease: "easeInOut" }}
     >
-      <div className="bg-grid absolute inset-0 opacity-70" />
+      <div className="bg-motif-texture absolute inset-0 opacity-70" />
       <div className="noise-veil" />
 
       <div className="relative flex h-60 w-60 items-center justify-center sm:h-80 sm:w-80">
@@ -169,7 +169,7 @@ export default function RadialLoader({ onDone }) {
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: dissolving ? 0 : 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="font-display text-xs font-semibold uppercase tracking-[0.3em] text-ink/70 sm:text-sm"
+        className="font-display text-xs font-semibold uppercase tracking-[0.3em] text-ink/80 drop-shadow-sm sm:text-sm"
       >
         {status}
       </motion.p>

@@ -200,7 +200,7 @@ export default function FaceRecognitionPage({ onFinished }) {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-paper-50">
-      <div className="bg-grid absolute inset-0 opacity-70" />
+      <div className="bg-motif-texture absolute inset-0 opacity-70" />
       <div className="animate-blob absolute -left-40 top-[-12%] h-[46rem] w-[46rem] rounded-full bg-sky-400/20 blur-2xl" />
       <div className="animate-drift absolute -right-48 bottom-[-18%] h-[42rem] w-[42rem] rounded-full bg-orange-500/15 blur-2xl" />
       <div className="noise-veil" />

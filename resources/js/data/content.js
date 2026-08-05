@@ -158,7 +158,7 @@ export const highlights = [
     copy: "LIC-HA — inventors from across the peninsula take the stage to showcase what they've built.",
     tag: "Convention",
     schedule: [
-      { day: "Aug 13", time: "1:00 – 5:00 PM", label: "LIC-HA: Local Inventors' Convention-Horizons and Advancement" },
+      { day: "Aug 13", time: "1:00 – 5:00 PM", label: "LIC-HA: Local Inventor's Convention-Horizons and Advancement" },
     ],
   },
   {
