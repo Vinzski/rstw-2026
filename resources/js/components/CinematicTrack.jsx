@@ -7,7 +7,7 @@ import { cinematicTotalVh } from "../data/content";
 // transition happens inside the same sticky viewport instead of at a
 // section boundary, which is what makes the whole thing read as one
 // continuous space instead of several stacked pages.
-export default function CinematicTrack({ onActiveChange, isAutoPlaying, forceMountAll }) {
+export default function CinematicTrack({ onActiveChange, isAutoPlaying, forceMountAll, excludeIntro }) {
   return (
     <ChapterTrack id="story" vh={cinematicTotalVh}>
       {(progress) => (
@@ -16,6 +16,7 @@ export default function CinematicTrack({ onActiveChange, isAutoPlaying, forceMou
           onActiveChange={onActiveChange}
           isAutoPlaying={isAutoPlaying}
           forceMountAll={forceMountAll}
+          excludeIntro={excludeIntro}
         />
       )}
     </ChapterTrack>

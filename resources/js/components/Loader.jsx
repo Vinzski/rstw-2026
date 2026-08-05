@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { BOOT_DURATION_MS } from "../lib/bootTiming";
+import { playSound } from "../lib/audio";
 
 const RING_R = 90;
 const CIRCUMFERENCE = 2 * Math.PI * RING_R;
@@ -32,11 +33,7 @@ export default function Loader({ onDone }) {
     };
   }, []);
 
-  useEffect(() => {
-    const sound = new Audio(COUNTDOWN_SOUND_SRC);
-    sound.play().catch(() => {});
-    return () => sound.pause();
-  }, []);
+  useEffect(() => playSound(COUNTDOWN_SOUND_SRC), []);
 
   useEffect(() => {
     if (progress >= 100 && !doneRef.current) {

@@ -16,7 +16,7 @@ export const VIPS = [
   },
   {
     id: 1,
-    name: "DAREL DEXTER UY",
+    name: "HON. DAREL DEXTER T. UY",
     title: "Governor of Zamboanga Del Norte",
     color: "#86281a", // maroon (red-700)
     image: "/images/VIPs/Governor_Darel_Dexter_Uy.png",

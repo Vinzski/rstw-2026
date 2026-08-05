@@ -26,57 +26,97 @@ const DIVE_GLYPHS = [
 
 // Each highlight gets its own brand color, the same treatment as the
 // Pillars chapter, so the four cards read as distinct beats rather than
-// the same orange card repeated four times.
+// the same orange card repeated four times. `light` is the same color
+// lifted to a pale tint — the schedule card now sits on a dimmed photo
+// (see ScheduleList), so its day/time caption needs something that still
+// reads on a dark backdrop instead of the mid-tone used everywhere else.
 const HIGHLIGHT_THEME = [
-  { text: "text-sky-600", gradient: "from-sky-500 to-sky-600", glow: "shadow-sky-600/20" },
-  { text: "text-red-600", gradient: "from-red-500 to-red-700", glow: "shadow-red-700/20" },
-  { text: "text-orange-600", gradient: "from-orange-500 to-orange-700", glow: "shadow-orange-700/20" },
-  { text: "text-navy-700", gradient: "from-navy-700 to-navy-900", glow: "shadow-navy-900/20" },
+  { text: "text-sky-600", light: "text-sky-300", gradient: "from-sky-500 to-sky-600", glow: "shadow-sky-600/20" },
+  { text: "text-red-600", light: "text-red-300", gradient: "from-red-500 to-red-700", glow: "shadow-red-700/20" },
+  { text: "text-orange-600", light: "text-orange-300", gradient: "from-orange-500 to-orange-700", glow: "shadow-orange-700/20" },
+  { text: "text-navy-700", light: "text-slate-300", gradient: "from-navy-700 to-navy-900", glow: "shadow-navy-900/20" },
 ];
 
-// One scattered photo: pops in with a fade + grow + a rotation that
-// overshoots its resting angle and settles back, plus the usual small
-// rise — the same "beat arriving" language as every other piece of
-// decor on the site, just applied per-photo instead of per-icon.
-//
-// One schedule row: same fade + rise entrance the old event photos used,
-// minus the rotate/hover business a floating photo needs — these sit
-// flat in a stacked list instead. Text is sized generously (this whole
-// site is
-// meant to also run on a lobby TV, viewed from across a room, not just a
-// laptop) rather than tuned for a phone screen up close.
+// Real event photos (RSTW 2025) — one per card now, as the schedule
+// card's own dimmed background rather than a separate floating cluster
+// (see ScheduleList). Local Inventors' Convention (index 2, formerly
+// "Innovation Competitions") reuses a competition-floor shot; close
+// enough in spirit that it still fits.
+const EVENT_PHOTOS_BASE = "/images/RSTW 2025";
+const COVER_PHOTOS = [
+  "553579800_1210302201144784_7655861267300697454_n.jpg",
+  "optimized/Screenshot 2026-07-22 081125.jpg",
+  "554658171_1210302714478066_6490822275766403100_n.jpg",
+  "553749858_1209289121246092_1791305236642796142_n.jpg",
+];
+
+// One schedule row. Text is sized generously (this whole site is meant
+// to also run on a lobby TV, viewed from across a room, not just a
+// laptop) rather than tuned for a phone screen up close. Light-on-dark
+// now (title white, divider white/15) since the card sits on a dimmed
+// photo instead of the plain paper backdrop it used to.
 function ScheduleRow({ progress, enterStart, enterDur, day, time, label, theme }) {
   const opacity = useTransform(progress, (p) => mapRange(p, enterStart, enterStart + enterDur, 0, 1));
   const rise = useTransform(progress, (p) => mapRangeSmooth(p, enterStart, enterStart + enterDur, 28, 0));
 
   return (
-    <motion.div style={{ opacity, y: rise }} className="border-b border-navy-900/10 py-4 last:border-b-0 xl:py-5">
-      <p className={`text-base font-semibold uppercase tracking-[0.2em] xl:text-lg ${theme.text}`}>
+    <motion.div style={{ opacity, y: rise }} className="border-b border-white/15 py-4 last:border-b-0 xl:py-5">
+      <p className={`text-base font-semibold uppercase tracking-[0.2em] ${theme.light} xl:text-lg`}>
         {day} &middot; {time}
       </p>
-      <p className="mt-2 font-display text-2xl font-semibold leading-snug text-ink xl:text-3xl">{label}</p>
+      <p className="mt-2 font-display text-2xl font-semibold leading-snug text-white xl:text-3xl">{label}</p>
     </motion.div>
   );
 }
 
-// Every card's real content — straight off the PDF's own Calendar of
-// Activities — shown as a schedule list instead of the event photos this
-// used to show.
-function ScheduleList({ progress, start, schedule, theme }) {
+// Each card's list is a curated few rows off the PDF's Calendar of
+// Activities, not the whole day — this trailing line is the tell that
+// there's more beyond what's shown, without pretending to be another
+// row itself: no border-b to pair it with, dimmer than the real rows,
+// and no day/time above it the way every real row gets.
+function AndMoreRow({ progress, enterStart, enterDur }) {
+  const opacity = useTransform(progress, (p) => mapRange(p, enterStart, enterStart + enterDur, 0, 0.65));
+  const rise = useTransform(progress, (p) => mapRangeSmooth(p, enterStart, enterStart + enterDur, 12, 0));
+
   return (
-    <div className="w-[28rem] rounded-3xl border border-navy-900/10 bg-paper-50/90 px-8 py-1 shadow-2xl shadow-navy-900/10 backdrop-blur-sm xl:w-[34rem] xl:px-10">
-      {schedule.map((row, i) => (
-        <ScheduleRow
-          key={row.label}
-          progress={progress}
-          enterStart={start + i * 0.012}
-          enterDur={0.014}
-          day={row.day}
-          time={row.time}
-          label={row.label}
-          theme={theme}
-        />
-      ))}
+    <motion.p style={{ opacity, y: rise }} className="pb-4 text-sm italic tracking-wide text-white/70 xl:pb-5 xl:text-base">
+      …and more on the day
+    </motion.p>
+  );
+}
+
+// Every card's real content — straight off the PDF's own Calendar of
+// Activities — now shown over that beat's own event photo instead of a
+// plain paper card: the photo itself is heavily darkened (`brightness`,
+// not an opacity fade, so it never washes out to a flat tint) and a
+// solid navy scrim sits on top of it for a second, guaranteed layer of
+// contrast — between the two, every row stays legible regardless of
+// what's actually in the underlying photo.
+function ScheduleList({ progress, start, schedule, theme, coverPhoto }) {
+  return (
+    <div className="relative w-[28rem] overflow-hidden rounded-3xl shadow-2xl shadow-navy-900/30 xl:w-[34rem]">
+      <img
+        src={`${EVENT_PHOTOS_BASE}/${coverPhoto}`}
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full object-cover brightness-[0.35] saturate-[0.7]"
+      />
+      <div className="absolute inset-0 bg-navy-950/55" />
+      <div className="relative px-8 py-1 xl:px-10">
+        {schedule.map((row, i) => (
+          <ScheduleRow
+            key={row.label}
+            progress={progress}
+            enterStart={start + i * 0.012}
+            enterDur={0.014}
+            day={row.day}
+            time={row.time}
+            label={row.label}
+            theme={theme}
+          />
+        ))}
+        <AndMoreRow progress={progress} enterStart={start + schedule.length * 0.012} enterDur={0.014} />
+      </div>
     </div>
   );
 }
@@ -147,17 +187,22 @@ function HighlightCard({ item, progress, index, theme, dive, prevDive, glyphRef,
         className={`absolute inset-0 flex items-center px-6 sm:px-16 lg:px-24 ${onRight ? "justify-end" : "justify-start"}`}
       >
         {/* Fills the side the text isn't on — rides the same beat frame
-            as the card itself, so it arrives and dives away with it. */}
+            as the card itself, so it arrives and dives away with it.
+            Pulled in from the screen edge toward the middle (it used to
+            sit right at `left/right-10-14`, which read as two islands
+            with a dead strip of paper between them) — not all the way to
+            center, so it still reads as "opposite the text" rather than
+            competing with it for the same spot. */}
         <div
           className={`pointer-events-none absolute top-1/2 hidden -translate-y-1/2 lg:block ${
-            onRight ? "left-10 xl:left-14" : "right-10 xl:right-14"
+            onRight ? "left-[8%] xl:left-[10%]" : "right-[8%] xl:right-[10%]"
           }`}
         >
-          <ScheduleList progress={progress} start={start} schedule={item.schedule} theme={theme} />
+          <ScheduleList progress={progress} start={start} schedule={item.schedule} theme={theme} coverPhoto={COVER_PHOTOS[index]} />
         </div>
 
         <div
-          className={`flex w-full max-w-4xl flex-col items-center gap-6 text-center sm:flex-row sm:items-start sm:gap-8 sm:text-left ${
+          className={`relative flex w-full max-w-4xl flex-col items-center gap-6 text-center sm:flex-row sm:items-start sm:gap-8 sm:text-left ${
             onRight ? "sm:flex-row-reverse" : ""
           }`}
         >
