@@ -285,21 +285,38 @@ export default function FaceRecognitionPage({ onFinished }) {
         {VIPS.map((slot, i) => {
           const data = verifiedData[i];
           const slotPos = metrics.slots[i];
-          const color = stageFor(i) === "done" ? slot.color : "var(--color-slate-500)";
+          // Black once verified rather than this VIP's own institutional
+          // color: the name above carries the emphasis (display face,
+          // semibold, near twice the size), and letting the role line sit
+          // quiet underneath in plain black reads as a caption to it
+          // instead of two competing highlights stacked on each other.
+          const color = stageFor(i) === "done" ? "#0b0d12" : "var(--color-slate-500)";
           return (
             <div
               key={`label-${slot.id}`}
               className="absolute -translate-x-1/2 text-center"
               style={{ left: slotPos.x, top: slotPos.y + metrics.circleSize / 2 + 20 }}
             >
-              <p className="font-display text-3xl font-semibold text-ink drop-shadow sm:text-4xl">
+              {/* `whitespace-nowrap`: the label has no width of its own,
+                  so a long name ("Dr. Renato U. Solidum, Jr.") would
+                  otherwise wrap and drop its suffix onto a line by
+                  itself. The two slots sit far enough apart that keeping
+                  each name on one line doesn't bring them near each
+                  other. */}
+              <p className="whitespace-nowrap font-display text-2xl font-semibold text-ink drop-shadow sm:text-4xl">
                 {data ? data.name : slot.designation}
               </p>
               <p
                 className="text-lg font-semibold uppercase tracking-[0.2em] transition-colors duration-500 sm:text-xl"
                 style={{ color }}
               >
-                {data ? data.designation : "Awaiting check-in"}
+                {data
+                  ? slot.title.map((line) => (
+                      <span key={line} className="block whitespace-nowrap">
+                        {line}
+                      </span>
+                    ))
+                  : "Awaiting check-in"}
               </p>
             </div>
           );

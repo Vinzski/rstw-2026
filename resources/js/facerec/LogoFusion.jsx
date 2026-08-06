@@ -4,12 +4,26 @@ import FusionFlash from "./FusionFlash";
 
 const MERGE_S = 0.9;
 const FLASH_HOLD_MS = 700;
+
+// After the two marks have met and flashed, the pair slides off-center to
+// the left and the credit line draws out from behind them to the right,
+// so the logos read as the thing the sentence is about rather than
+// decoration next to it. The line is revealed by a clip opening
+// left-to-right rather than by sliding an opaque block out from under
+// them — these are transparent PNGs on a light background, so there's
+// nothing solid for text to actually hide behind.
+const SHIFT_S = 0.8;
+const CREDIT_DELAY_S = 0.35; // lets the pair start clearing the space first
+const CREDIT_S = 0.9;
+const CREDIT_HOLD_MS = 1500; // the requested beat to actually read it
+const CREDIT_LINE =
+  "The Department of Science and Technology and Dipolog City, collaborating to bring you today's event.";
 // The resting logo fills the exact same footprint as the VIP's own
 // circular photo (see useStageMetrics' circleSize) — not a small badge
 // lost in the middle of a much bigger circle. Once merging, it shrinks
 // to this fraction of that size so the two marks can sit side by side
 // without swallowing the screen between them.
-const MERGE_SCALE_RATIO = 0.42;
+const MERGE_SCALE_RATIO = 0.55;
 // A little more than one merged-logo-width apart, so the pair reads as
 // two marks meeting rather than overlapping into a smear.
 const SEPARATION_FACTOR = 1.15;
@@ -44,10 +58,22 @@ const SEPARATION_FACTOR = 1.15;
 // mount.
 export default function LogoFusion({ vips, metrics, verified, merging, covered, uncoverS, onDone }) {
   const [flashed, setFlashed] = useState(false);
-  const { slots, center, circleSize } = metrics;
+  const [shifted, setShifted] = useState(false);
+  const { slots, center, circleSize, viewport } = metrics;
 
   const finalSize = circleSize * MERGE_SCALE_RATIO;
   const travel = Math.max(center.x - slots[0].x - (finalSize * SEPARATION_FACTOR) / 2, 0);
+
+  // Where the pair ends up once it steps aside, and where the line sits
+  // beside it. Sized off the viewport rather than fixed pixels so the
+  // sentence keeps sensible line lengths on any screen this runs on, and
+  // `shiftX` is derived so that logos + gap + text end up centered as one
+  // group — the pair moves left by exactly half of what the text adds.
+  const pairWidth = finalSize * (SEPARATION_FACTOR + 1);
+  const creditGap = Math.max(48, viewport.w * 0.035);
+  const creditWidth = Math.min(820, viewport.w * 0.44);
+  const shiftX = (creditGap + creditWidth) / 2;
+  const creditLeft = center.x - shiftX + pairWidth / 2 + creditGap;
 
   useEffect(() => {
     if (!merging) return;
@@ -57,9 +83,15 @@ export default function LogoFusion({ vips, metrics, verified, merging, covered, 
 
   useEffect(() => {
     if (!flashed) return;
-    const t = setTimeout(onDone, FLASH_HOLD_MS);
+    const t = setTimeout(() => setShifted(true), FLASH_HOLD_MS);
     return () => clearTimeout(t);
-  }, [flashed, onDone]);
+  }, [flashed]);
+
+  useEffect(() => {
+    if (!shifted) return;
+    const t = setTimeout(onDone, (CREDIT_DELAY_S + CREDIT_S) * 1000 + CREDIT_HOLD_MS);
+    return () => clearTimeout(t);
+  }, [shifted, onDone]);
 
   return (
     <motion.div className="pointer-events-none fixed inset-0 z-[5]" exit={{ opacity: 0 }} transition={{ duration: 0.5, ease: "easeInOut" }}>
@@ -76,7 +108,8 @@ export default function LogoFusion({ vips, metrics, verified, merging, covered, 
       {vips.map((vip, i) => {
         if (!verified[i]) return null;
         const slot = slots[i];
-        const x = merging ? (i === 0 ? travel : -travel) : 0;
+        const converged = i === 0 ? travel : -travel;
+        const x = merging ? converged - (shifted ? shiftX : 0) : 0;
         return (
           <motion.div
             key={vip.id}
@@ -93,7 +126,10 @@ export default function LogoFusion({ vips, metrics, verified, merging, covered, 
             animate={{ scale: merging ? MERGE_SCALE_RATIO : 1, x, borderRadius: covered ? "50%" : "0%" }}
             transition={{
               scale: { duration: MERGE_S, ease: "easeInOut" },
-              x: { duration: MERGE_S, ease: "easeInOut" },
+              // The converge and the step-aside are the same property
+              // animating twice, so the second leg gets its own (longer,
+              // softer) duration once `shifted` flips.
+              x: { duration: shifted ? SHIFT_S : MERGE_S, ease: "easeInOut" },
               borderRadius: { duration: uncoverS, ease: "easeInOut" },
             }}
           >
@@ -106,6 +142,31 @@ export default function LogoFusion({ vips, metrics, verified, merging, covered, 
           old convergence, reused here for a pair of static marks instead
           of four color orbs. */}
       {flashed && <FusionFlash />}
+
+      {/* The credit line, drawn out to the right as the pair steps left.
+          `inset(0 100% 0 0)` starts it clipped to nothing at its own left
+          edge — which sits just past the logos — and opening that to 0%
+          wipes it into view left-to-right, so it reads as emerging from
+          behind them. The small x slide underneath gives the wipe some
+          travel rather than having the words simply appear in place. */}
+      {shifted && (
+        <motion.div
+          className="absolute -translate-y-1/2"
+          style={{ left: creditLeft, top: slots[0].y, width: creditWidth }}
+          initial={{ clipPath: "inset(0 100% 0 0)", x: -36, opacity: 0 }}
+          animate={{ clipPath: "inset(0 0% 0 0)", x: 0, opacity: 1 }}
+          transition={{
+            duration: CREDIT_S,
+            delay: CREDIT_DELAY_S,
+            ease: [0.16, 1, 0.3, 1],
+            opacity: { duration: 0.3, delay: CREDIT_DELAY_S },
+          }}
+        >
+          <p className="font-display text-2xl font-medium leading-snug text-ink drop-shadow-sm sm:text-3xl xl:text-4xl">
+            {CREDIT_LINE}
+          </p>
+        </motion.div>
+      )}
     </motion.div>
   );
 }

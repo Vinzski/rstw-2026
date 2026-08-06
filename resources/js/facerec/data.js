@@ -7,7 +7,14 @@
 // `datetime`, unused for display but part of the same payload) only exist
 // once that slot's own broadcast arrives; until then the panel just reads
 // as locked. `color`/`logo` are each slot's own fixed institutional
-// branding and never change. Plain hex (not `var(--color-...)`) on
+// branding and never change. `title` is the full role shown under a
+// verified name — kept separate from `designation` because that one is
+// the matching key against the incoming broadcast and has to stay the
+// bare word; it's a property of the slot rather than the payload, since
+// whoever fills the Secretary slot is by definition the Secretary. It's
+// split into lines rather than left as one string because where the
+// role breaks from the institution is a deliberate reading choice, not
+// whatever the available width happens to land on. Plain hex (not `var(--color-...)`) on
 // purpose: VipBox builds translucent tints like `${color}33` by string
 // concatenation, which only works with a real hex string, not a CSS
 // custom-property reference.
@@ -17,12 +24,14 @@ export const VIPS = [
   {
     id: "governor",
     designation: "Governor",
+    title: ["Governor of", "Zamboanga Del Norte"],
     color: "#86281a", // maroon (red-700)
     logo: "/images/VIP LOGOs/Ph_seal_zamboanga_del_norte.png",
   },
   {
     id: "secretary",
     designation: "Secretary",
+    title: ["Secretary of", "Department of Science & Technology"],
     color: "#f5a051", // orange (orange-500)
     logo: "/images/VIP LOGOs/dost-logo.png",
   },
