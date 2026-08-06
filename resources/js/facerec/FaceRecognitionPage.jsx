@@ -9,11 +9,11 @@ import { configBroadcast } from "../echo";
 import { VIPS, BACKUP_VIPS } from "./data";
 import { playSound } from "../lib/audio";
 
-const HOLD_BEFORE_REVEAL_MS = 800; // once both verify, how long their own border-fill/flash gets before settling into "reveal"
-const REVEAL_HOLD_MS = 3000; // how long the verified photo + logo sit together before the panels clear
-// The panels' own fade out, once both are done — opacity only, no scale:
-// the logo already sits in place directly behind each photo at the exact
-// same size (see LogoFusion), so a plain fade dissolves straight into it.
+const HOLD_BEFORE_REVEAL_MS = 800; // once both verify, how long their own border-fill/flash + logo badge gets before settling into a shared hold
+const REVEAL_HOLD_MS = 3000; // how long both VIPs' photos (each already showing its own logo badge — see VipBox) hold together before clearing
+// Both panels' own fade-out, once both are done — opacity only, no scale:
+// each VIP's full-size logo already sits in place directly behind their
+// photo (see LogoFusion), so a plain fade dissolves straight into it.
 // Scaling the photo layer without scaling the (separate) logo layer to
 // match made the photo shrink faster than the logo could "catch up",
 // reading as the photo popping behind an oversized logo instead of
@@ -40,16 +40,17 @@ const INITIAL_PHASE = "booting";
 //    "idle" stage) until their own broadcast arrives. The Secretary is
 //    expected first, then the Governor, but nothing here enforces that
 //    order — each slot just lights up independently the moment *its own*
-//    VipEvent lands, same as the other panel.
+//    VipEvent lands: their photo reveals AND their own institutional logo
+//    appears right on it as a small badge in the same beat (see VipBox) —
+//    shown together immediately, not one hidden behind the other.
 // 3. "reveal" — once both have verified (and had a beat for their own
-//    border-fill/flash to finish), their photo holds on screen with each
-//    VIP's own institutional logo already sitting directly behind it,
-//    dead center of their half (see LogoFusion) — a beat to actually
-//    read who just checked in, not just a blip before the next thing.
-// 4. "clearing" — the photo/name panels disappear quickly (not a slow
-//    dissolve — see CLEAR_FADE_S), uncovering the logo that was behind
-//    each one the whole time; the logos themselves are untouched by this
-//    and simply remain in place.
+//    border-fill/flash + badge to settle), both photos hold on screen
+//    together, each already showing its own logo, for REVEAL_HOLD_MS.
+// 4. "clearing" — both photo/name panels disappear together (fade —
+//    CLEAR_FADE_S), uncovering each VIP's own *full-size* institutional
+//    logo that was sitting directly behind their photo the whole time
+//    (see LogoFusion) — the small on-photo badge and this full-size mark
+//    are the same logo, just handing off from one to the other.
 // 5. "settled" — the two logos just stand there on their own, uncovered,
 //    for a beat (LOGO_HOLD_MS) before doing anything else.
 // 6. "merging" — LogoFusion slides those same two logos together into
@@ -192,11 +193,10 @@ export default function FaceRecognitionPage({ onFinished }) {
 
   const panelsVisible = phase === "booting" || phase === "waiting" || phase === "reveal";
   // Mounted from "waiting" onward (not held back for the "reveal" phase)
-  // so each VIP's own logo is already in the DOM, directly behind their
-  // panel, the instant their photo starts its wipe-reveal — see the
-  // `verified` prop passed to LogoFusion below, which gates each logo
-  // individually so it never lags behind its own photo the way waiting
-  // for the shared "reveal" phase used to.
+  // so each VIP's own full-size logo is already in the DOM, directly
+  // behind their panel, the instant their photo starts its wipe-reveal —
+  // see the `verified` prop passed to LogoFusion below, which gates each
+  // logo individually so it never lags behind its own photo.
   const logosVisible = phase === "waiting" || phase === "reveal" || phase === "clearing" || phase === "settled" || phase === "merging";
   // Clipped to a circle only while the (circular) photo is still opaque
   // and sitting in front of it — matching that shape so nothing pokes
@@ -211,75 +211,99 @@ export default function FaceRecognitionPage({ onFinished }) {
   return (
     <div className="relative min-h-screen overflow-hidden bg-paper-50">
       <div className="bg-motif-texture absolute inset-0 opacity-70" />
-      <div className="animate-blob absolute -left-40 top-[-12%] h-[46rem] w-[46rem] rounded-full bg-sky-400/20 blur-2xl" />
-      <div className="animate-drift absolute -right-48 bottom-[-18%] h-[42rem] w-[42rem] rounded-full bg-orange-500/15 blur-2xl" />
+      {/* `-z-10` on just these two (not the plain texture/noise layers
+          above and below) isn't cosmetic — Chromium composites a blurred,
+          animated, z-index:auto element like this into its own GPU layer,
+          and without an explicit *negative* z-index that layer can still
+          paint over a later, higher z-index sibling despite normal CSS
+          paint-order rules saying it shouldn't. Confirmed by hiding these
+          two specifically and watching a stray bleed-through disappear.
+          The plain motif-texture/noise layers never had that problem —
+          giving them the same `-z-10` at one point made the motif texture
+          disappear outright instead, so it was reverted. */}
+      <div className="animate-blob absolute -left-40 top-[-12%] -z-10 h-[46rem] w-[46rem] rounded-full bg-sky-400/20 blur-2xl" />
+      <div className="animate-drift absolute -right-48 bottom-[-18%] -z-10 h-[42rem] w-[42rem] rounded-full bg-orange-500/15 blur-2xl" />
       <div className="noise-veil" />
       <BrandBorder className="absolute inset-x-0 top-0 z-20 h-[5px] sm:h-[7px]" />
+      {/* A gray veil over each VIP's own slice of the header — muting,
+          not replacing, the mosaic underneath — that lifts the instant
+          that specific VIP verifies, exposing their slice in full color.
+          Rendered as a sibling on top of BrandBorder rather than a prop
+          on it, since BrandBorder is shared with the footer and has no
+          business knowing about VIP state. */}
+      {VIPS.map((slot, i) => (
+        <div
+          key={`header-mask-${slot.id}`}
+          className="absolute top-0 z-30 h-[5px] transition-opacity duration-700 ease-out sm:h-[7px]"
+          style={{
+            left: i * metrics.slotWidth,
+            width: metrics.slotWidth,
+            background: "rgba(100,116,139,0.75)",
+            opacity: stageFor(i) === "done" ? 0 : 1,
+          }}
+        />
+      ))}
 
+      {/* `absolute inset-0 z-10` here (not just on the child below)
+          matters twice over. First, Framer Motion leaves this wrapper at
+          `position: static` / `z-index: auto` by default, which — with no
+          explicit stacking context of its own — drops the *entire* panel
+          (photo included) into the same bottom paint tier as the plain
+          background decor, below LogoFusion's `position: fixed; z-index:
+          5`; without a fix, the VIP's photo would paint *under*
+          LogoFusion's full-size logo rather than over it, letting the
+          logo's own transparent PNG regions show through as a ghosted
+          watermark. Second, `absolute inset-0` (rather than bare
+          `relative`) gives this wrapper an actual, correctly-sized box:
+          `relative` alone has no explicit height, and since every child
+          of this wrapper is itself `position: absolute` (out of normal
+          flow), the wrapper would collapse to zero height — which any
+          descendant relying on percentage/inset resolution (like the
+          half-page domain backgrounds' `inset-y-0`) needs a real
+          containing-block height for. `VipBox` itself never showed this,
+          since it's positioned with explicit computed pixel values, not
+          `inset-*`. */}
       <motion.div
+        className="absolute inset-0 z-10"
         animate={{ opacity: panelsVisible ? 1 : 0 }}
         transition={{ duration: CLEAR_FADE_S, ease: "easeInOut" }}
       >
-        <div className="absolute inset-0 z-10">
-          {/* Each VIP's own half of the screen — gray by default,
-              switching to that VIP's own assigned color (both kept
-              subtle, not a solid fill) the instant *they* verify.
-              Rendered first so it sits behind the circle/label, not as
-              part of the circle itself. */}
-          {VIPS.map((slot, i) => (
-            <div
-              key={`half-bg-${slot.id}`}
-              className="absolute inset-y-0 transition-colors duration-700 ease-out"
-              style={{
-                left: i * metrics.slotWidth,
-                width: metrics.slotWidth,
-                backgroundColor: stageFor(i) === "done" ? `${slot.color}4D` : "rgba(12,26,51,0.1)",
-              }}
+        {VIPS.map((slot, i) => {
+          const data = verifiedData[i];
+          return (
+            <VipBox
+              key={slot.id}
+              vip={{ ...slot, ...data }}
+              stage={stageFor(i)}
+              rect={rectFor(i)}
+              initializing={initializing}
+              flip
             />
-          ))}
+          );
+        })}
 
-          {/* The literal split between the two halves — a thin vertical
-              line down the center, so the two background tints read as
-              two distinct sides rather than one wash bleeding together. */}
-          <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-navy-900/10" />
-
-          {VIPS.map((slot, i) => {
-            const data = verifiedData[i];
-            return (
-              <VipBox
-                key={slot.id}
-                vip={{ ...slot, ...data }}
-                stage={stageFor(i)}
-                rect={rectFor(i)}
-                initializing={initializing}
-                flip
-              />
-            );
-          })}
-
-          {VIPS.map((slot, i) => {
-            const data = verifiedData[i];
-            const slotPos = metrics.slots[i];
-            const color = phase === "booting" ? "var(--color-slate-500)" : slot.color;
-            return (
-              <div
-                key={`label-${slot.id}`}
-                className="absolute -translate-x-1/2 text-center"
-                style={{ left: slotPos.x, top: slotPos.y + metrics.circleSize / 2 + 20 }}
+        {VIPS.map((slot, i) => {
+          const data = verifiedData[i];
+          const slotPos = metrics.slots[i];
+          const color = stageFor(i) === "done" ? slot.color : "var(--color-slate-500)";
+          return (
+            <div
+              key={`label-${slot.id}`}
+              className="absolute -translate-x-1/2 text-center"
+              style={{ left: slotPos.x, top: slotPos.y + metrics.circleSize / 2 + 20 }}
+            >
+              <p className="font-display text-3xl font-semibold text-ink drop-shadow sm:text-4xl">
+                {data ? data.name : slot.designation}
+              </p>
+              <p
+                className="text-lg font-semibold uppercase tracking-[0.2em] transition-colors duration-500 sm:text-xl"
+                style={{ color }}
               >
-                <p className="font-display text-base font-semibold text-ink drop-shadow sm:text-lg">
-                  {data ? data.name : slot.designation}
-                </p>
-                <p
-                  className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] transition-colors duration-500 sm:text-xs"
-                  style={{ color }}
-                >
-                  {data ? data.designation : "Awaiting check-in"}
-                </p>
-              </div>
-            );
-          })}
-        </div>
+                {data ? data.designation : "Awaiting check-in"}
+              </p>
+            </div>
+          );
+        })}
       </motion.div>
 
       <AnimatePresence>{phase === "booting" && <RadialLoader onDone={handleBooted} />}</AnimatePresence>

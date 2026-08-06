@@ -19,9 +19,13 @@ export function useStageMetrics() {
   const slotWidth = w / 2;
   const slotHeight = h;
 
+  // Nudged up from dead-center (h/2) so there's more breathing room below
+  // for the name/title label without the whole pair feeling low on the
+  // screen.
+  const slotCenterY = h * 0.44;
   const slots = [
-    { x: slotWidth / 2, y: h / 2 },
-    { x: slotWidth + slotWidth / 2, y: h / 2 },
+    { x: slotWidth / 2, y: slotCenterY },
+    { x: slotWidth + slotWidth / 2, y: slotCenterY },
   ];
 
   const center = { x: w / 2, y: h / 2 };

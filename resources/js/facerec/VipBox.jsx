@@ -69,7 +69,7 @@ export default function VipBox({ vip, stage, rect, initializing = false, flip = 
         height: rect.height,
         boxShadow: glow,
       }}
-      className="overflow-hidden rounded-full bg-navy-900/5 transition-shadow duration-700 ease-out"
+      className="overflow-hidden rounded-full bg-navy-900/15 transition-shadow duration-700 ease-out"
     >
       {/* The lock reads as "waiting," not "broken" — a small pulse keeps
           it visibly alive rather than a static icon that could pass for
@@ -111,15 +111,23 @@ export default function VipBox({ vip, stage, rect, initializing = false, flip = 
       </AnimatePresence>
 
       {reached && (
-        <div className="relative h-full w-full">
+        <div className="relative h-full w-full bg-paper-50">
+          {/* This VIP's own institutional logo, as a constant backdrop
+              directly behind the photo — filling the whole circle at full
+              strength, not a small badge lost in the middle of it. The
+              broadcast's own avatar photos are background-removed cutouts
+              with real alpha transparency around the person, not a solid
+              rectangle, so this shows through those gaps at full color. */}
+          <div className="absolute inset-0">
+            <img src={vip.logo} alt="" aria-hidden="true" className="h-full w-full object-cover" />
+          </div>
           {/* Wipes open top-to-bottom rather than a plain fade, so the
               photo reads as "just revealed" the instant verification
-              lands, not merely appearing. */}
-          {avatarFailed ? (
-            <div className="grid h-full w-full place-items-center bg-paper-50 p-[18%]">
-              <img src={vip.logo} alt={vip.name} className="h-full w-full object-contain" />
-            </div>
-          ) : (
+              lands, not merely appearing. If the avatar URL itself fails
+              (expired signed URL, hosting hiccup), it just never wipes in
+              — the logo backdrop above is already this same VIP's own
+              logo, so there's nothing extra to fall back to. */}
+          {!avatarFailed && (
             <motion.img
               src={vip.avatar}
               alt={vip.name}
@@ -160,8 +168,11 @@ export default function VipBox({ vip, stage, rect, initializing = false, flip = 
           style={{
             offsetPath: `path('${circleD}')`,
             offsetRotate: "auto",
-            background: `linear-gradient(to right, transparent, ${vip.color}, #fff)`,
-            filter: `drop-shadow(0 0 2px ${vip.color})`,
+            // Gray while waiting, not this VIP's own color — that color
+            // is reserved for the instant *they* actually verify (see the
+            // border-fill below), so nothing here should hint at it early.
+            background: "linear-gradient(to right, transparent, #94a3b8, #fff)",
+            filter: "drop-shadow(0 0 2px #94a3b8)",
           }}
           animate={{ offsetDistance: ["0%", "100%"] }}
           transition={{ duration: SCAN_BEAM_LAP_S, repeat: Infinity, ease: "linear" }}
