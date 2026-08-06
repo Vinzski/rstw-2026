@@ -14,16 +14,19 @@ const MERGE_SCALE_RATIO = 0.42;
 // two marks meeting rather than overlapping into a smear.
 const SEPARATION_FACTOR = 1.15;
 
-// Mounted from the "scanning" phase onward (see FaceRecognitionPage) so
+// Mounted from the "waiting" phase onward (see FaceRecognitionPage) so
 // each VIP's own institutional logo is already sitting dead center of
 // their half — sized to match their circular photo exactly and directly
 // behind it (a lower z-index than VipBox's own circle) — the instant
 // `verified` flips true for them, in the same render as VipBox starts
-// that photo's own wipe-reveal. Mounting it any later left a window where
-// the photo was still mid-wipe with nothing behind it yet, so the logo
-// would visibly pop in partway through instead of the two reading as one
-// reveal. While `covered` (still behind/under the photo — "scanning"
-// through "reveal"), it's clipped to that same circle so a squared-off
+// that photo's own wipe-reveal (and its own small logo badge right on the
+// photo — see VipBox — so the logo reads as shown immediately, not hidden
+// until later; this full-size copy is just staged for the eventual merge).
+// Mounting it any later left a window where the photo was still mid-wipe
+// with nothing behind it yet, so the logo would visibly pop in partway
+// through instead of the two reading as one reveal. While `covered`
+// (still behind/under the photo — "waiting" through "reveal"), it's
+// clipped to that same circle so a squared-off
 // mark like DOST's doesn't poke its corners out past the photo's round
 // edge. `covered` drops the instant the photo starts fading ("clearing"),
 // and the clip animates open over `uncoverS` (matching the photo's own
