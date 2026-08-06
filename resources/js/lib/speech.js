@@ -122,7 +122,7 @@ export function cancelSpeech() {
 }
 
 // `slug` is either a tour-stop index (0-9, see speakNarration) or a
-// named one-off clip (see speakWelcome) — both just resolve to
+// named one-off clip (see speakFinaleTease) — both just resolve to
 // public/audio/narration/<slug>.wav.
 function playClip(slug) {
   return new Promise((resolve, reject) => {
@@ -172,15 +172,25 @@ export function speakNarration(index, text) {
     .finally(() => setSpeaking(false));
 }
 
-// The one-off welcome line (see welcomeNarration in content.js) —
-// same pre-generated-clip-then-speechSynthesis-fallback shape as
-// speakNarration, just under the fixed "welcome" slug instead of a
-// tour-stop index. Callers decide when it fires and that it only fires
-// once; this just plays it.
+// The one-off bridge line between the tour ending and the countdown
+// starting (see finaleTeaseNarration in content.js) — same pre-
+// generated-clip-then-speechSynthesis-fallback shape as speakNarration,
+// under the fixed "finale" slug, but deliberately doesn't touch
+// isSpeaking/setSpeaking: App hushes the background music to silence
+// for this one itself (a deliberate full stop, not the same duck-and-
+// recover rhythm the regular tour narration drives), so there's nothing
+// for the ducking effect to do here — wiring this into that flag too
+// would just have it fight App's own explicit volume call.
+export function speakFinaleTease(text) {
+  if (getMuted()) return Promise.resolve();
+  return playClip("finale").catch(() => speak(text));
+}
+
+// The welcome line that lands with the hero (see welcomeNarration in
+// content.js). Same shape as speakFinaleTease, under the fixed
+// "welcome" slug — and likewise left out of isSpeaking, since the bed
+// music it would duck is long gone by the time the hero reveals.
 export function speakWelcome(text) {
   if (getMuted()) return Promise.resolve();
-  setSpeaking(true);
-  return playClip("welcome")
-    .catch(() => speak(text))
-    .finally(() => setSpeaking(false));
+  return playClip("welcome").catch(() => speak(text));
 }

@@ -9,6 +9,7 @@ import EmberField from "./components/EmberField";
 import FireworksBurst from "./components/FireworksBurst";
 import CustomCursor from "./components/CustomCursor";
 import CinematicTrack from "./components/CinematicTrack";
+import FinaleAlchemy from "./components/FinaleAlchemy";
 import Footer from "./components/Footer";
 import { LenisProvider } from "./lib/lenisContext";
 import { VelocityProvider } from "./lib/velocityContext";
@@ -42,7 +43,10 @@ const PREVIEW_MUSIC_SRC = "/audio/background%20music/sunsides-exciting-event-151
 const PREVIEW_MUSIC_VOLUME_IDLE = 0.35;
 const PREVIEW_MUSIC_VOLUME_DUCKED = 0.12;
 const PREVIEW_MUSIC_DUCK_FADE_MS = 400;
-const PREVIEW_MUSIC_FADE_OUT_MS = 600;
+// Long enough to read as the music hushing to silence rather than being
+// cut: this fade is what plays as the screen dims into the finale scene
+// (see FinaleAlchemy), which then runs over real quiet.
+const PREVIEW_MUSIC_FADE_OUT_MS = 900;
 
 // How far into the master scroll track counts as "the preview has
 // reached the real end" — a little short of 1 so a manual scroll (not
@@ -72,10 +76,14 @@ export default function App() {
   //                   stop list the Play button uses, skipping Intro's
   //                   own stop, through to Highlights — automatically,
   //                   no button.
+  //   "finale"      — FinaleAlchemy: the last card dims away entirely,
+  //                   a beat of darkness, then the narrator's tease over
+  //                   a lit chemistry scene, ending in the burst of
+  //                   light that hands off to the countdown.
   //   "booting"     — the Loader/countdown + RstwAssembly ring: exactly
   //                   the sequence that used to fire right after the
   //                   kiosk handoff, just triggered here instead, once
-  //                   the preview reaches the real end of the track.
+  //                   the finale's own burst has cleared.
   //   "celebrating" — FireworksBurst, unchanged.
   //   "site"        — normal interactive site, Intro revealed at the top.
   const [phase, setPhase] = useState("preview");
@@ -115,17 +123,26 @@ export default function App() {
     releaseOverride: releaseAutoPlayOverride,
   } = useAutoPlay(lenisRef);
 
-  // Resets the track to the real top and hands off to the boot sequence
-  // (Loader/RstwAssembly countdown, then fireworks, then Intro's own
-  // reveal) — the same handoff FaceRecognitionPage used to trigger
-  // directly; now reached from the far end of the preview tour instead.
-  // Idempotent: both the driven tour's own finale stop and the manual-
-  // scroll fallback below call this, and only the first should count.
+  // Ends the tour and hands to the finale scene rather than cutting
+  // straight from the last narrated card to the countdown. Leaving
+  // "preview" is itself what hushes the bed music — the music effect's
+  // own cleanup fades it out (see PREVIEW_MUSIC_FADE_OUT_MS) as the
+  // screen dims. Idempotent: both the driven tour's own finale stop and
+  // the manual-scroll fallback below call this, and only the first
+  // should count.
   const handlePreviewFinale = useCallback(() => {
     if (finaleFiredRef.current) return;
     finaleFiredRef.current = true;
     stopAutoPlay();
     releaseAutoPlayOverride();
+    setPhase("finale");
+  }, [stopAutoPlay, releaseAutoPlayOverride]);
+
+  // Once the finale's burst has filled the screen: reset the track to
+  // the real top and start the boot sequence (Loader/RstwAssembly
+  // countdown, then fireworks, then Intro's own reveal) — the same
+  // handoff FaceRecognitionPage used to trigger directly.
+  const handleFinaleDone = useCallback(() => {
     if (lenisRef.current) lenisRef.current.scrollTo(0, { immediate: true, force: true });
     else window.scrollTo(0, 0);
     // Intro hasn't dove through anything in this run — clear the handoff
@@ -133,7 +150,7 @@ export default function App() {
     // from a real, un-forced 0 once it mounts fresh at the top.
     diveHandoffs.intro.full.set(0);
     setPhase("booting");
-  }, [stopAutoPlay, releaseAutoPlayOverride]);
+  }, []);
 
   // Kicks off the pre-reveal tour the instant the track is up: lands
   // straight on About's theme statement and free-runs the same stop list
@@ -191,16 +208,15 @@ export default function App() {
     return () => window.removeEventListener("scroll", onScroll);
   }, [phase, isPlaying, handlePreviewFinale]);
 
-  // Bed music for exactly the "preview" phase — the narrator is only
-  // ever talking during this stretch (see tourNarration/useAutoPlay),
-  // and nowhere else. Starts the instant preview does (this phase is
-  // the initial state, so that's on mount) and stop()'s own fade-out is
-  // what actually stops it the moment `phase` changes away — i.e. the
-  // instant the countdown starts, whether the tour reached its own
-  // finale or a manual scroll and the fallback watcher did instead.
-  // Kept in a ref (not just the effect's own closure) so the separate
-  // ducking effect below can reach the same controls to adjust volume
-  // mid-playback without restarting the track.
+  // Bed music for exactly the "preview" phase — the tour narrator is
+  // only ever talking during this stretch (see tourNarration/
+  // useAutoPlay), and the finale scene that follows deliberately plays
+  // over silence. Starts the instant preview does (this phase is the
+  // initial state, so that's on mount); leaving the phase runs this
+  // cleanup, whose stop() fade is the hush heard as the screen dims
+  // into the finale. Kept in a ref (not just the effect's own closure)
+  // so the ducking effect below can reach the same controls to adjust
+  // volume mid-playback without restarting the track.
   const musicRef = useRef(null);
   useEffect(() => {
     if (phase !== "preview") return undefined;
@@ -300,14 +316,15 @@ export default function App() {
     };
   }, [rawVelocity]);
 
-  // Locked only for "booting": the countdown needs the page to hold
-  // still under it (same as the old loading phase did) so nothing
-  // accumulated from a stray wheel/touch mid-countdown suddenly releases
-  // once the Loader clears. Started everywhere else, including
-  // "preview" — the preview tour's own jumps and glides need scrollTo to
-  // actually move the page, and a manual scroll is allowed to cancel it.
+  // Locked for "finale" and "booting": both play over a full-screen
+  // layer with nothing to scroll, and the countdown in particular needs
+  // the page to hold still under it so nothing accumulated from a stray
+  // wheel/touch suddenly releases once the Loader clears. Started
+  // everywhere else, including "preview" — the preview tour's own jumps
+  // and glides need scrollTo to actually move the page, and a manual
+  // scroll is allowed to cancel it.
   useEffect(() => {
-    if (phase === "booting") lenisRef.current?.stop();
+    if (phase === "finale" || phase === "booting") lenisRef.current?.stop();
     else lenisRef.current?.start();
   }, [phase]);
 
@@ -336,12 +353,13 @@ export default function App() {
       <VelocityProvider value={velocity}>
         <AppReadyProvider value={phase !== "booting"}>
           <HeroChromeRevealProvider value={revealHeroChrome}>
+            {phase === "finale" && <FinaleAlchemy onDone={handleFinaleDone} />}
             <AnimatePresence>
               {phase === "booting" && <Loader onDone={handleLoaded} />}
             </AnimatePresence>
             {phase === "celebrating" && <FireworksBurst onDone={handleCelebrated} />}
 
-            {phase !== "booting" && <EmberField />}
+            {phase !== "booting" && phase !== "finale" && <EmberField />}
             <CustomCursor />
 
             <div className="relative bg-paper-50">
@@ -369,7 +387,7 @@ export default function App() {
                   onActiveChange={setCinematicActive}
                   isAutoPlaying={isPlaying}
                   forceMountAll={isRewinding}
-                  excludeIntro={phase === "preview"}
+                  excludeIntro={phase === "preview" || phase === "finale"}
                 />
               </main>
               <Footer />
