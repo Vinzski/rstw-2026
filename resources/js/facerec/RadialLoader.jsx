@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { playSound } from "../lib/audio";
 
 const LOAD_DURATION_MS = 5000;
 const DISSOLVE_DURATION_MS = 900;
+// Built from the UI sound effects pack: the sustained "body" (30s–31s)
+// looped 4x, then the ending (31s–32s) appended once — not the sustained
+// part, so it only ever plays once. Started the instant the ring begins
+// filling so it reads as "loading" rather than a random sting.
+const BOOT_SOUND_SRC = "/audio/loading-boot.mp3";
 const RING_R = 86;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_R;
 const SPLIT_OFFSET_VW = 30; // how far each ring travels off to its own side once loading finishes
@@ -71,7 +77,12 @@ export default function RadialLoader({ onDone }) {
   const [pct, setPct] = useState(0);
   const [dissolving, setDissolving] = useState(false);
 
+  // The boot sound starts in this same effect as the tick loop, not a
+  // separate one, so its own start and the ring's first frame land in the
+  // same render — no gap where one could visibly lag the other.
   useEffect(() => {
+    playSound(BOOT_SOUND_SRC);
+
     let raf;
     const start = performance.now();
     const tick = (now) => {
