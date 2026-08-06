@@ -5,6 +5,20 @@ import { Lock } from "lucide-react";
 const BORDER_FILL_DURATION_S = 0.9;
 const SCAN_BEAM_LAP_S = 2.4; // one full trip around the frame while waiting
 
+// The frame reads the same for both VIPs rather than in each one's own
+// institutional color: with two people side by side, matching frames let
+// the portraits and names carry the difference instead of the furniture
+// competing with them. Drawn as two concentric rings — a heavy inner one
+// on the photo's edge and a fine outer one set slightly off it — because
+// a single stroke at this diameter reads as flat trim, while the pair
+// reads as an actual frame with a little air in it. Their own color
+// still drives the transient verification beats (the ping, the flash),
+// which is where the per-institution accent belongs.
+const FRAME_COLOR = "#0b0d12";
+const FRAME_WIDTH = 6;
+const FRAME_OUTER_GAP = 9;
+const FRAME_OUTER_WIDTH = 1.75;
+
 // A circular viewfinder, centered in the middle of its half of the
 // screen (see useStageMetrics' circleSize) — `rect` is always a square
 // bounding box, and everything below traces its inscribed circle rather
@@ -56,8 +70,12 @@ export default function VipBox({ vip, stage, rect, initializing = false, flip = 
   // "starts from the top" comes from the path's own M command instead of
   // fighting Framer Motion for control of the element's transform.
   const circleD = circlePath(cx, cy, radius);
+  const outerCircleD = circlePath(cx, cy, radius + FRAME_OUTER_GAP);
 
-  const glow = reached ? `0 0 28px 7px ${vip.color}55` : "0 0 0 2px rgba(12,26,51,0.1)";
+  // Neutral once verified, so the halo doesn't reintroduce the per-VIP
+  // tint the frame itself just dropped — it now reads as the frame
+  // casting a shadow rather than as colored glow.
+  const glow = reached ? "0 0 26px 6px rgba(11,13,18,0.28)" : "0 0 0 2px rgba(12,26,51,0.1)";
 
   return (
     <div
@@ -185,17 +203,32 @@ export default function VipBox({ vip, stage, rect, initializing = false, flip = 
         <motion.path
           d={circleD}
           fill="none"
-          stroke={vip.color}
-          strokeWidth="3"
+          stroke={FRAME_COLOR}
+          strokeWidth={FRAME_WIDTH}
           initial={{ pathLength: 0, opacity: 0 }}
           animate={{ pathLength: reached ? 1 : 0, opacity: reached ? 1 : 0 }}
           transition={{ duration: BORDER_FILL_DURATION_S, ease: "easeOut" }}
           onAnimationComplete={() => reached && setBorderFilled(true)}
-          style={{ filter: `drop-shadow(0 0 5px ${vip.color})` }}
+          style={{ filter: "drop-shadow(0 1px 3px rgba(11,13,18,0.45))" }}
+        />
+
+        {/* The outer hairline, drawn a touch behind the heavy ring so the
+            two land as one frame — same fill sweep, slightly slower, so
+            it trails rather than racing it. */}
+        <motion.path
+          d={outerCircleD}
+          fill="none"
+          stroke={FRAME_COLOR}
+          strokeWidth={FRAME_OUTER_WIDTH}
+          strokeOpacity="0.45"
+          initial={{ pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: reached ? 1 : 0, opacity: reached ? 1 : 0 }}
+          transition={{ duration: BORDER_FILL_DURATION_S * 1.25, ease: "easeOut" }}
         />
 
         {/* A brief flash + outward pulse the instant the border finishes
-            filling. */}
+            filling — kept in this VIP's own color, since it's a one-off
+            "verified" beat rather than part of the standing frame. */}
         {borderFilled && (
           <motion.path
             d={circleD}
